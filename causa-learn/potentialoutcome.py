@@ -11,6 +11,7 @@ class PotentialOutcome(Model):
         self.data = POdata(Y, Z, X)
         self.propensity = None
         self.result = None
+        super(self.__class__, self).__init__()
         
         
     def estimate(self):
