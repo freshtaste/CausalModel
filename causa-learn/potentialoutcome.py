@@ -17,10 +17,13 @@ class PotentialOutcome(Model):
         pass
     
     
-    def est_via_ipw(self, learning_model):
+    def est_via_ipw(self, learning_model, propensity=None):
         prop_model = LearningModel(learning_model)
-        self.propensity = prop_model.insample_predict()
-        estimates = 1/self.data.n*(np.sum(self.data.Y[self.data.Z == 1])
+        if propensity:
+            self.propensity = propensity
+        else:
+            self.propensity = prop_model.insample_predict()
+        ate = 1/self.data.n*(np.sum(self.data.Y[self.data.Z == 1])
                                   -np.sum(self.data.Y[self.data.Z == 0]))
         result = None
         return result
