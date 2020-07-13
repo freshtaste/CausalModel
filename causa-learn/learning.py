@@ -17,3 +17,4 @@ class LearningModel(object):
     def predict(self, X):
         pass
     
+
