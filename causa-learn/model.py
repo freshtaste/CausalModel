@@ -1,8 +1,8 @@
 class Model(object):
     
     
-    def __init__(self):
-        self.data = None
+    def __init__(self, data = None):
+        self.data = data
         self.result = None
         
         
