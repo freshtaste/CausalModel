@@ -1,3 +1,4 @@
+from sklearn import linear_model
 class LearningModel(object):
     
     """
