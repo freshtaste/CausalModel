@@ -70,8 +70,8 @@ class POdata(object):
     
     def verify_data(self):
         if not (isinstance(self.X, np.ndarray) \
-                or isinstance(self.Y, np.ndarray) \
-                or isinstance(self.Z, np.ndarray)):
+                and isinstance(self.Y, np.ndarray) \
+                and isinstance(self.Z, np.ndarray)):
             return False
         if not len(self.Y) == len(self.Z) == len(self.X):
             return False
