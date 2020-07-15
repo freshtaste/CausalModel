@@ -17,7 +17,7 @@ class PotentialOutcome(Model):
                        'p-value:': None,
                        '95% Confidence Interval': None
                        }
-        super(self.__class__, self).__init__()
+        super(self.__class__, self).__init__(self.data)
         
         
     def estimate(self):
@@ -59,7 +59,9 @@ class POdata(object):
             self.idx_c = self.Z == 0
             self.Yc = self.get_Yc()
             self.Yt = self.get_Yt()
-    
+        else:
+            import logging
+            logging.error("The data provided should be ndarray of the same length")
     
     def get_n(self):
         return len(self.Y)
@@ -74,12 +76,10 @@ class POdata(object):
     
     
     def verify_data(self):
+        if not (isinstance(self.X, np.ndarray) \
+                and isinstance(self.Y, np.ndarray) \
+                and isinstance(self.Z, np.ndarray)):
+            return False
         if not len(self.Y) == len(self.Z) == len(self.X):
-            return False
-        if (type(self.Y) is not np.ndarray):
-            return False
-        if (type(self.Z) is not np.ndarray):
-            return False
-        if (type(self.X) is not np.ndarray):
             return False
         return True
