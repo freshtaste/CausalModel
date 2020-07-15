@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.stats import norm
 from model import Model
 from learning import LearningModel
 
@@ -31,11 +32,17 @@ class PotentialOutcome(Model):
         else:
             self.propensity = prop_model.insample_predict()
         # Compute Average Treatment Effect (ATE)
-        ate = 1/self.data.n*(np.sum(self.Yt/self.propensity[self.data.idx_t])
-                            -np.sum(self.Yc/self.propensity[self.data.idx_c]))
-        # Compute Standard Error
-        se = None
-        # 
+        #ate = 1/self.data.n*(np.sum(self.Yt/self.propensity[self.data.idx_t])
+        #                    -np.sum(self.Yc/self.propensity[self.data.idx_c]))
+        G =  ((self.data.Z - self.propensity) * self.Y) / (self.propensity*(1-self.propensity))
+        self.result['Average Treatment Effect'] = np.mean(G)
+        # Compute Standard Error and etc
+        self.result['Standard Error'] = np.sqrt(np.var(G) / (len(G)-1))
+        self.result['z'] = self.result['Average Treatment Effect']/self.result['Standard Error']
+        self.result['p-value'] = (1 - norm.cdf(self.result['z']))*2
+        self.result['95% Confidence Interval'] = (self.result['Average Treatment Effect'] - 
+                   1.96 * self.result['Standard Error'], self.result['Average Treatment Effect'] +
+                   1.96 * self.result['Standard Error'])
         return self.result
     
     
