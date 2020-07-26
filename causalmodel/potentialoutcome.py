@@ -2,6 +2,7 @@ import numpy as np
 from scipy.stats import norm
 from model import Model
 from learning import LearningModel
+from result import Result
 
 
 class PotentialOutcome(Model):
