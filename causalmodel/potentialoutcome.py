@@ -1,8 +1,8 @@
 import numpy as np
 from scipy.stats import norm
 from model import Model
-from learning import LearningModel
 from result import Result
+import warnings
 
 
 class PotentialOutcome(Model):
@@ -15,27 +15,35 @@ class PotentialOutcome(Model):
         self.result = {'Average Treatment Effect': None,
                        'Standard Error': None,
                        'z': None,
-                       'p-value:': None,
+                       'p-value': None,
                        '95% Confidence Interval': None
                        }
-        super(self.__class__, self).__init__(self.data)
+        super(self.__class__, self).__init__(self.data, self.result)
+        self.eps = 1e-4
         
         
     def estimate(self):
         pass
     
     
-    def est_via_ipw(self, learning_model, propensity=None):
+    def est_via_ipw(self, LearningModel, propensity=None):
         # Parse in learning model for propensity score: Z ~ X (binary classfication)
-        prop_model = LearningModel(learning_model)
+        prop_model = LearningModel()
+        prop_model.fit(self.data.X, self.data.Z)
         if propensity:
             self.propensity = propensity
         else:
-            self.propensity = prop_model.insample_predict()
+            self.propensity = prop_model.insample_proba()
         # Compute Average Treatment Effect (ATE)
         #ate = 1/self.data.n*(np.sum(self.Yt/self.propensity[self.data.idx_t])
         #                    -np.sum(self.Yc/self.propensity[self.data.idx_c]))
-        G =  ((self.data.Z - self.propensity) * self.Y) / (self.propensity*(1-self.propensity))
+        num_bad_prop = np.sum((self.propensity*(1-self.propensity)) == 0)
+        if num_bad_prop > 0:
+            self.propensity[self.propensity == 0] += self.eps
+            self.propensity[self.propensity == 1] -= self.eps
+            warnings.warn("Propensity scores has {} number of 0s or 1s.".format(
+                num_bad_prop))
+        G =  ((self.data.Z - self.propensity) * self.data.Y) / (self.propensity*(1-self.propensity))
         self.result['Average Treatment Effect'] = np.mean(G)
         # Compute Standard Error and etc
         self.result['Standard Error'] = np.sqrt(np.var(G) / (len(G)-1))

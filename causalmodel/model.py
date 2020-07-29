@@ -1,9 +1,9 @@
 class Model(object):
     
     
-    def __init__(self, data = None):
+    def __init__(self, data = None, result = None):
         self.data = data
-        self.result = None
+        self.result = result
         
         
     def __repr__(self):
