@@ -1,1 +1,1 @@
-"""The :mod:`causalmodel.LearningModels` module includes classifiers, ...., methods"""from ._classifiers import LogisticRegression__all__ =[    'LogisticRegression'    ]
+"""The :mod:`causalmodel.LearningModels` module includes classifiers, ...., methods"""from ._classifiers import LogisticRegressionfrom ._predictors import OLS__all__ =[    'LogisticRegression',    'OLS'    ]
