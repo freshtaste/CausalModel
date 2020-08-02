@@ -3,6 +3,7 @@ from scipy.stats import norm
 from model import Model
 from result import Result
 import warnings
+from LearningModels import LogisticRegression
 
 
 class PotentialOutcome(Model):
@@ -33,7 +34,7 @@ class PotentialOutcome(Model):
     
         
     def estimate(self):
-        pass
+        return self.est_via_ipw(LogisticRegression)
     
     
     def est_via_ipw(self, PropensityModel, propensity=None):

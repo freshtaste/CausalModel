@@ -25,3 +25,5 @@ class LogisticRegression(LogisticRegression):
     
     def insample_proba(self):
         return self.predict_proba(self.X)
+
+
