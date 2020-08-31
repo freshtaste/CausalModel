@@ -15,12 +15,7 @@ class PotentialOutcome(Model):
         self.propensity = None
         self.treated_pred = None
         self.control_pred = None
-        self.result = {'Average Treatment Effect': None,
-                       'Standard Error': None,
-                       'z': None,
-                       'p-value': None,
-                       '95% Confidence Interval': None
-                       }
+        self.result = None
         super(self.__class__, self).__init__(self.data, self.result)
         self.eps = 1e-4
     
@@ -37,7 +32,7 @@ class PotentialOutcome(Model):
         return self.est_via_ipw(LogisticRegression)
     
     
-    def est_via_ipw(self, PropensityModel, propensity=None):
+    def est_via_ipw(self, PropensityModel, propensity=None, normalize=True):
         if propensity is not None:
             self.propensity = propensity
         else:
@@ -45,9 +40,12 @@ class PotentialOutcome(Model):
             
         self._fix_propensity()
         # Compute Average Treatment Effect (ATE)
-        #ate = 1/self.data.n*(np.sum(self.Yt/self.propensity[self.data.idx_t])
-        #                    -np.sum(self.Yc/self.propensity[self.data.idx_c]))
-        G =  ((self.data.Z - self.propensity) * self.data.Y) / (self.propensity*(1-self.propensity))
+        w1 = self.data.Z/self.propensity
+        w0 = (1-self.data.Z)/(1-self.propensity)
+        if normalize:
+            G = w1 * self.data.Y/(np.sum(w1)/self.data.n) - w0 * self.data.Y/(np.sum(w0)/self.data.n)
+        else:
+            G = w1 * self.data.Y - w0 * self.data.Y 
         
         return self._get_results(G)
     
@@ -94,13 +92,13 @@ class PotentialOutcome(Model):
     
     
     def _get_results(self, G):
-        self.result['Average Treatment Effect'] = np.mean(G)
-        self.result['Standard Error'] = np.sqrt(np.var(G) / (len(G)-1))
-        self.result['z'] = self.result['Average Treatment Effect']/self.result['Standard Error']
-        self.result['p-value'] = (1 - norm.cdf(self.result['z']))*2
-        self.result['95% Confidence Interval'] = (self.result['Average Treatment Effect'] - 
-                   1.96 * self.result['Standard Error'], self.result['Average Treatment Effect'] +
-                   1.96 * self.result['Standard Error'])
+        ate = np.mean(G)
+        se = np.sqrt(np.var(G) / (len(G)-1))
+        self.result = Result(average_treatment_effect=ate,
+                             standard_error=se,
+                             z=ate/se,
+                             p_value=((1 - norm.cdf(ate/se))*2),
+                             confidence_interval=(ate - 1.96*se, ate+1.96*se))
         return self.result
 
     
@@ -123,6 +121,7 @@ class POdata(object):
         else:
             import logging
             logging.error("The data provided should be ndarray of the same length")
+            
     
     def get_n(self):
         return len(self.Y)

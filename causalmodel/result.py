@@ -1,4 +1,6 @@
 class Result(object):
+    
+    
     def __init__(self, **kwargs):
         try:
             self.average_treatment_effect = kwargs.get('average_treatment_effect', None)
@@ -8,6 +10,7 @@ class Result(object):
             self.confidence_interval = kwargs.get('confidence_interval', None)
         except AttributeError:
             pass
+        
 
     def show(self):
         print('*' * 20)
@@ -15,6 +18,3 @@ class Result(object):
         print(f'standard error:           {self.standard_error}\n')
         print(f'p value:                  {self.p_value}\n')
         print(f'confidence interval:      {self.confidence_interval}')
-
-var = Result(z="yilun", p_value=0.5)
-var.show()
