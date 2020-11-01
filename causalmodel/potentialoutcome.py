@@ -3,7 +3,7 @@ from scipy.stats import norm
 from model import Model
 from result import Result
 import warnings
-from LearningModels import LogisticRegression
+from LearningModels import LogisticRegression, OLS
 
 
 class PotentialOutcome(Model):
@@ -103,12 +103,19 @@ class PotentialOutcome(Model):
         Yhat_c, Yhat_t = np.mean(Yt[match_for_c],axis=1), np.mean(Yc[match_for_t],axis=1)
         ITT_t, ITT_c = Yt - Yhat_t, Yhat_c - Yc
         Yhat1, Yhat0 = np.append(Yt, Yhat_c), np.append(Yhat_t, Yc)
-
-        if bias_adj:
-            pass
         
         atc, att = ITT_c.mean(), ITT_t.mean()
         ate = (nc/n)*atc + (nt/n)*att
+
+        if bias_adj:
+            mu0 = OLS().fit(Xc, Yc)
+            mu1 = OLS().fit(Xt, Yt)
+            mu0_t, mu0_c = mu0.predict(Xt), mu0.predict(Xc)
+            mu1_t, mu1_c = mu1.predict(Xt), mu1.predict(Xc)
+            match_for_0t = np.mean(mu0_c[match_for_t],axis=1)
+            match_for_1c = np.mean(mu1_t[match_for_c],axis=1)
+            BM = np.sum(mu0_t - match_for_0t)/n - np.sum(mu1_c - match_for_1c)/n
+            ate -= BM
         
         # estimate variance
         Km = np.zeros(n)
