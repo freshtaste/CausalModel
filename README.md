@@ -9,10 +9,10 @@ The repository gets updated from time to time. Tools and models are added in a w
 * Neymanian difference in mean estimator
 * Fisher randomization tests
 
-To use the package, first determine whether your data is from an observational study or experimental study. Then, import the corresponding class and call the functions of estimators. For example: ::
-
-  >>> from observational import Observational
-  >>> obs = Observational(Y, Z, X)
-  >>> obs.est_via_ipw(LogisticRegression).show()
-
+To use the package, first determine whether your data is from an observational study or experimental study. Then, import the corresponding class and call the functions of estimators. For example:
+```
+from observational import Observational
+obs = Observational(Y, Z, X)
+obs.est_via_ipw(LogisticRegression).show()
+```
 
