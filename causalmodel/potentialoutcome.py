@@ -1,4 +1,6 @@
 import numpy as np
+from result import Result
+from scipy.stats import norm
 
 
 class PotentialOutcome(object):
@@ -20,6 +22,15 @@ class PotentialOutcome(object):
     
     def estimate(self):
         pass
+    
+    
+    def _get_results(self, ate, se):
+        self.result = Result(average_treatment_effect=ate,
+                             standard_error=se,
+                             z=ate/se,
+                             p_value=((1 - norm.cdf(ate/se))*2),
+                             confidence_interval=(ate - 1.96*se, ate+1.96*se))
+        return self.result
     
     
 class POdata(object):

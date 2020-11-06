@@ -1,7 +1,5 @@
 import numpy as np
-from scipy.stats import norm
 from potentialoutcome import PotentialOutcome
-from result import Result
 import warnings
 from LearningModels import LogisticRegression, OLS
 
@@ -148,14 +146,6 @@ class Observational(PotentialOutcome):
                 warnings.warn("Propensity scores has {} number of 0s or 1s."
                               .format(num_bad_prop))
     
-    
-    def _get_results(self, ate, se):
-        self.result = Result(average_treatment_effect=ate,
-                             standard_error=se,
-                             z=ate/se,
-                             p_value=((1 - norm.cdf(ate/se))*2),
-                             confidence_interval=(ate - 1.96*se, ate+1.96*se))
-        return self.result
     
     
     def mat_match_mat(self, X, Y, M):
