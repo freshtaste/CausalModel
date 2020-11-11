@@ -1,13 +1,16 @@
 import numpy as np
-from potentialoutcome import PotentialOutcome, POdata
+from potentialoutcome import POdata
+from observational import Observational
 from LearningModels import LogisticRegression, MultiLogisticRegression
+from collections import Counter
 
 
-class Clustered(PotentialOutcome):
+class Clustered(Observational):
     
     def __init__(self, Y, Z, X, cluster_label, cluster_feature=None, n_moments=1, 
-            prop_idv_model=LogisticRegression(), prop_neigh_model=MultiLogisticRegression(), n_matches=1):
-        super(self.__class__, self).__init__(Y,Z,X)
+            prop_idv_model=LogisticRegression(), prop_neigh_model=MultiLogisticRegression(), 
+            n_matches=10):
+        #super(self.__class__, self).__init__(Y,Z,X) TD DO: fix inheret
         self.data = ClusterData(Y, Z, X, cluster_label, cluster_feature, n_moments)
         self.prop_idv_model = prop_idv_model
         self.prop_neigh_model = prop_neigh_model
@@ -15,19 +18,84 @@ class Clustered(PotentialOutcome):
             
         
     def est_via_ipw(self):
-        pass
-    
+        sizes = sorted(list(self.data.data_by_size.keys()))
+        size_max = max(sizes)
+        total_result = {}
+        for size in sizes:
+            Mn = len(self.data.data_by_size[size][0])/size
+            pn = Mn/self.data.M
+            result = self.est_subsample(size)
+            taug = result['beta(g)']
+            Vg = result['se']**2*Mn
+            total_result[size] = (pn, taug, Vg)
+        ret = {'beta(g)': np.zeros(size_max), 'se': np.zeros(size_max)}
+        for g in range(size_max):
+            key_vals = np.array([[pn, taug[g], Vg[g]] for n, (pn, taug, Vg)
+                        in total_result.items() if g < n])
+            w =  key_vals[:,0]/np.sum(key_vals[:,0])
+            taug_n = key_vals[:,1]
+            Vg_n = key_vals[:,2]
+            ret['beta(g)'][g] = w.dot(taug_n)
+            Vg1 = Vg_n.dot(w**2/key_vals[:,0])
+            ret['se'][g] = np.sqrt(Vg1/self.data.M)
+        return ret
+        
     
     def est_propensity(self, Z, G, Xc):
         idv = self.prop_idv_model.fit(Xc, Z)
         prop_idv = idv.insample_proba()
         neigh = self.prop_neigh_model.fit(Xc, G)
-        prop_neigh = neigh.insample_proba()
+        prop_neigh = neigh.predict_proba(Xc)
         return prop_idv, prop_neigh
     
     
+    def est_subsample(self, size):
+        Y, Z, G, Xc, labels = self.data.data_by_size[size]
+        N = len(Y)
+        prop_idv, prop_neigh = self.est_propensity(Z, G, Xc)
+        result = {'beta(g)': np.zeros(size), 'se': np.zeros(size)}
+        for g in range(size):
+            w1 = (G == g) * Z /(prop_neigh[:,g]*prop_idv) 
+            w0 = (G == g) * (1 - Z)/(prop_neigh[:,g]*(1-prop_idv))
+            arr = Y * w1/(np.sum(w1)/N) - Y * w0/(np.sum(w0)/N)
+            result['beta(g)'][g] = np.mean(arr)
+            Vg = self.variance_via_matching(Y[G == g], Z[G == g], 
+                    Xc[G == g], prop_idv[G == g], prop_neigh[G == g,g], size)
+            result['se'][g] = np.sqrt(Vg/(N/size))
+        return result
     
-        
+    
+    def variance_via_matching(self, Y_g, Z_g, Xc_g, prop_1, prop_g, size):
+        idx1 = Z_g == 1
+        Y1_g = Y_g[idx1]
+        Y0_g = Y_g[~idx1]
+        Xc1_g = Xc_g[idx1]
+        Xc0_g = Xc_g[~idx1]
+        # Standardize Xc
+        X1 = Xc1_g/np.sqrt(np.var(Xc1_g, axis=0))
+        X0 = Xc0_g/np.sqrt(np.var(Xc0_g, axis=0))
+        # Matching for treated units
+        c_for_t = self.mat_match_mat(X1, X0, self.n_matches)
+        t_for_t = self.mat_match_mat(X1, X1, self.n_matches+1)
+        beta1 = np.mean(Y1_g[t_for_t], axis=1) - np.mean(Y0_g[c_for_t], axis=1)
+        var1_t = np.var(Y1_g[t_for_t], axis=1)
+        var1_c = np.var(Y0_g[c_for_t], axis=1)
+        # Matching for control units
+        t_for_c = self.mat_match_mat(X0, X1, self.n_matches)
+        c_for_c = self.mat_match_mat(X0, X0, self.n_matches+1)
+        beta0 = np.mean(Y1_g[t_for_c], axis=1) - np.mean(Y0_g[c_for_c], axis=1)
+        var0_t = np.var(Y1_g[t_for_c], axis=1)
+        var0_c = np.var(Y0_g[c_for_c], axis=1)
+        # stacking
+        pg = np.append(prop_g[idx1], prop_g[~idx1])
+        q = np.append(prop_1[idx1], prop_1[~idx1])
+        beta = np.append(beta1, beta0)
+        var_t = np.append(var1_t, var0_t)
+        var_c = np.append(var1_c, var0_c)
+        # calculate Vg
+        arr = var_t/(pg*q) + var_c/(pg*(1-q)) + (beta - np.mean(beta))**2
+        Vg = np.mean(arr)/size
+        return Vg
     
 
 class ClusterData(POdata):
@@ -37,73 +105,69 @@ class ClusterData(POdata):
         self.Z = Z
         self.X = X
         self.cluster_label = cluster_label
+        self.M = len(set(cluster_label))
         self.cluster_feature = cluster_feature
         self.n_moments = n_moments
         if self.verify_clusters():
+            self.n = len(Y)
             self.data_by_size = self.split_by_size()
         
     
-    # TO DO: Can we optimize?
     def split_by_size(self):
         """
         Split the data into {size: (Y, Z, G, Xc, labels)}
         """
-        clusters = set(self.cluster_label)
+        sizes = Counter(self.cluster_label)
+        cluster_size = np.array([sizes[c] for c in self.cluster_label])
+        arg = np.argsort(cluster_size)
+        cluster_size_sorted = cluster_size[arg]
         data_by_size = {}
-        for c in clusters:
-            idx = self.cluster_label == c
-            size = np.sum(idx)
-            if self.cluster_feature:
-                cluster_feature_c = self.cluster_feature[idx]
-                if not self.all_same(cluster_feature_c):
-                    raise RuntimeWarning("Please make sure cluster_features are\
-                                    the same with cluster {}.".format(c))
-            else:
-                cluster_feature_c = None
-            nt = np.sum(self.Z[idx])
-            data_c = [self.Y[idx], self.Z[idx], nt - self.Z[idx], self.get_covariates(
-                self.X[idx], cluster_feature_c, self.n_moments),
-                self.cluster_label[idx]]
-            if data_by_size.get(size) is None:
-                data_by_size[size] = data_c
-            else:
-                for i, v in enumerate(data_by_size.get(size)):
-                    data_by_size[size][i] = np.append(v, data_c[i], axis=0)
+        idx1 = 0
+        for idx2 in range(self.n):
+            if cluster_size_sorted[idx2] != cluster_size_sorted[idx1] or idx2 == self.n-1:
+                if idx2 == self.n - 1:
+                    idx2 = self.n
+                idx = arg[idx1:idx2]
+                if self.cluster_feature:
+                    cluster_feature_i = self.cluster_feature[idx]
+                else:
+                    cluster_feature_i = None
+                data_by_size[cluster_size_sorted[idx1]] = self.get_final_tuple(self.Y[idx], 
+                        self.Z[idx], self.X[idx], self.cluster_label[idx],
+                        cluster_feature_i, cluster_size_sorted[idx1])
+                idx1 = idx2
         return data_by_size
     
     
-    def get_covariates(self, X, cluster_feature, n_moments):
+    def get_final_tuple(self, Y, Z, X, cluster_label, cluster_feature, size):
         """
-        Append cluster_feature to X and generate n_moments for as additional 
-        cluster features
-
-        Parameters
-        ----------
-        X : np.ndarray
-            (n, k) shape matrix.
-        cluster_feature : np.ndarray or None
-            (n, m) shape matrix.
-        n_moments : int
-            Number of moments to include as additional features.
-
-        Returns
-        -------
-        Xc : np.ndarray
-            Full matrix of features.
-
+            Process the X and cluster_feature to obtain the full covariates matrix.
+            Compute G, # of treated neighbours.
         """
-        if n_moments > 0:
-            mu = np.mean(X, axis=0)
-            f1 = np.repeat(np.expand_dims(mu, axis=0), len(X),axis=0)
-            X = np.append(X, f1, axis=1)
-            X_centered = X - mu
-            for i in range(1, n_moments):
-                mi = np.mean(np.power(X_centered, n_moments+1), axis=0)
-                fi = np.repeat(np.expand_dims(mi, axis=0), len(X),axis=0)
-                X = np.append(X, fi, axis=1)
+        arg = np.argsort(cluster_label)
+        Y = Y[arg]
+        Z = Z[arg]
+        X = X[arg]
+        cluster_label = cluster_label[arg]
+        X = X.reshape(int(len(Y)/size), size, X.shape[1])
+        if self.n_moments > 0:
+            mu = np.mean(X, axis=1)
+            f1 = np.repeat(np.expand_dims(mu, axis=1), size, axis=1)
+            X_centered = X - f1
+            X = np.append(X, f1, axis=2)
+            for i in range(1, self.n_moments):
+                mi = np.mean(np.power(X_centered, self.n_moments+1), axis=1)
+                fi = np.repeat(np.expand_dims(mi, axis=1), len(X),axis=1)
+                X = np.append(X, fi, axis=2)
+        X = X.reshape(len(Y), X.shape[2])
         if cluster_feature:
-            X = np.append(X, cluster_feature, axis=1)
-        return X
+            cluster_feature = cluster_feature[arg]
+            X = np.append(X, cluster_feature, axis=2)
+        Z = Z.reshape(int(len(Y)/size), size)
+        G = np.repeat(np.expand_dims(np.sum(Z, axis=1), axis=1), size, axis=1) - Z
+        G = G.reshape(len(Y)).astype(int)
+        Z = Z.reshape(len(Y)).astype(int)
+        return (Y, Z, G, X, cluster_label)
         
     
     def verify_clusters(self):
@@ -141,4 +205,3 @@ class ClusterData(POdata):
             return True
         else:
             return False
-    
