@@ -1,7 +1,8 @@
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression as Logit
+import numpy as np
 
 
-class LogisticRegression(LogisticRegression):
+class LogisticRegression(Logit):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -25,5 +26,22 @@ class LogisticRegression(LogisticRegression):
     
     def insample_proba(self):
         return self.predict_proba(self.X)
-
-
+    
+    
+class MultiLogisticRegression(Logit):
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.X = None
+        self.y = None
+        
+        
+    def fit(self, X, y):
+        self.X = X
+        self.y = y
+        return super(MultiLogisticRegression, self).fit(X, y)
+    
+        
+    def insample_proba(self):
+        sklearn_out = self.predict_proba(self.X)
+        return sklearn_out[np.arange(len(sklearn_out)), self.y]

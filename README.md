@@ -14,7 +14,8 @@ To use the package, first determine whether your data is from an observational s
 from observational import Observational
 from LearningModels import LogisticRegression
 
+logit_model = LogisticRegression()
 obs = Observational(Y, Z, X)
-obs.est_via_ipw(LogisticRegression).show()
+obs.est_via_ipw(logit_model).show()
 ```
 

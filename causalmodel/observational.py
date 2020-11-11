@@ -19,7 +19,7 @@ class Observational(PotentialOutcome):
     def est_propensity(self, PropensityModel):
         # Estiamte propensity score with learning model for propensity score: 
         # Z ~ X (binary classfication)
-        prop_model = PropensityModel()
+        prop_model = PropensityModel
         prop_model.fit(self.data.X, self.data.Z)
         return prop_model.insample_proba()
     
@@ -54,14 +54,14 @@ class Observational(PotentialOutcome):
         if treated_pred is not None:
             self.treated_pred = treated_pred
         else:
-            treated_model = OutcomeModel()
+            treated_model = OutcomeModel
             treated_model.fit(self.data.Xt, self.data.Yt)
             self.treated_pred = treated_model.predict(self.data.X)
             
         if control_pred is not None:
             self.control_pred = control_pred
         else:
-            control_model = OutcomeModel()
+            control_model = OutcomeModel
             control_model.fit(self.data.Xc, self.data.Yc)
             self.control_pred = control_model.predict(self.data.X)
             

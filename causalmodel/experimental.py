@@ -13,6 +13,10 @@ class Experimental(PotentialOutcome):
         self.stats = None
         self.cal_stats = None
         
+        
+    def estimate(self):
+        return self.est_via_dm()
+    
     
     def est_via_dm(self):
         self.cal_stats = lambda Z: np.mean(self.data.Y[Z==1]) - np.mean(self.data.Y[Z==0])

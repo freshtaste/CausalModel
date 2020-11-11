@@ -40,7 +40,7 @@ class POdata(object):
         self.Y = Y
         self.Z = Z
         self.X = X
-        if self.verify_data():
+        if self.verify_yzx():
             self.n = self.get_n()
             self.idx_t = self.Z == 1
             self.idx_c = self.Z == 0
@@ -50,9 +50,6 @@ class POdata(object):
             self.Yt = self.get_Yt()
             self.Xc = self.get_Xc()
             self.Xt = self.get_Xt()
-        else:
-            import logging
-            logging.error("The data provided should be ndarray of the same length")
             
     
     def get_n(self):
@@ -75,11 +72,19 @@ class POdata(object):
         return self.X[self.idx_t]
     
     
-    def verify_data(self):
+    def verify_yzx(self):
         if not (isinstance(self.X, np.ndarray) \
                 and isinstance(self.Y, np.ndarray) \
                 and isinstance(self.Z, np.ndarray)):
+            raise RuntimeError("Incorrect input type for Y, Z or X. Should be np.ndarray.")
             return False
         if not len(self.Y) == len(self.Z) == len(self.X):
+            raise RuntimeError("Incorrect input shape for Y, Z or X. Should have n rows.")
+            return False
+        if not len(self.Y.shape) == len(self.Z.shape) == 1:
+            raise RuntimeError("Incorrect input shape for Y or Z. Should be (n,).")
+            return False
+        if not len(self.X.shape) == 2:
+            raise RuntimeError("Incorrect input shape for X. Should be n by k.")
             return False
         return True
