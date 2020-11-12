@@ -60,8 +60,6 @@ class Clustered(Observational):
             w0 = (G == g) * (1 - Z)/(prop_neigh[:,g]*(1-prop_idv))
             arr = Y * w1/(np.sum(w1)/N) - Y * w0/(np.sum(w0)/N)
             result['beta(g)'][g] = np.mean(arr)
-            #Vg = self.variance_via_matching(Y[G == g], Z[G == g], 
-            #        Xc[G == g], prop_idv[G == g], prop_neigh[G == g,g], size)
             if self.subsampling_match <= N:
                 sub = np.random.choice(np.arange(N), 
                             self.subsampling_match, replace=False)
