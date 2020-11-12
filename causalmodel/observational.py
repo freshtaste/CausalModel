@@ -2,6 +2,7 @@ import numpy as np
 from potentialoutcome import PotentialOutcome
 import warnings
 from LearningModels import LogisticRegression, OLS
+from scipy.spatial.distance import cdist
 
 
 class Observational(PotentialOutcome):
@@ -160,3 +161,8 @@ class Observational(PotentialOutcome):
     def arr_match_mat(self, Xi, X, M):
         dist = self.dist_arr_mat(Xi, X)
         return np.argpartition(dist, M)[:M]
+    
+    
+    def mat_match_mat2(self, X, Y, M):
+        D = cdist(X, Y)
+        return np.argpartition(D, M, axis=1)[:,:M]

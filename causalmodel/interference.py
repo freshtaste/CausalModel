@@ -9,12 +9,13 @@ class Clustered(Observational):
     
     def __init__(self, Y, Z, X, cluster_label, cluster_feature=None, n_moments=1, 
             prop_idv_model=LogisticRegression(), prop_neigh_model=MultiLogisticRegression(), 
-            n_matches=10):
+            n_matches=10, subsampling_match=2000):
         #super(self.__class__, self).__init__(Y,Z,X) TD DO: fix inheret
         self.data = ClusterData(Y, Z, X, cluster_label, cluster_feature, n_moments)
         self.prop_idv_model = prop_idv_model
         self.prop_neigh_model = prop_neigh_model
         self.n_matches = n_matches
+        self.subsampling_match = subsampling_match
             
         
     def est_via_ipw(self):
@@ -59,39 +60,35 @@ class Clustered(Observational):
             w0 = (G == g) * (1 - Z)/(prop_neigh[:,g]*(1-prop_idv))
             arr = Y * w1/(np.sum(w1)/N) - Y * w0/(np.sum(w0)/N)
             result['beta(g)'][g] = np.mean(arr)
-            Vg = self.variance_via_matching(Y[G == g], Z[G == g], 
-                    Xc[G == g], prop_idv[G == g], prop_neigh[G == g,g], size)
+            #Vg = self.variance_via_matching(Y[G == g], Z[G == g], 
+            #        Xc[G == g], prop_idv[G == g], prop_neigh[G == g,g], size)
+            if self.subsampling_match <= N:
+                sub = np.random.choice(np.arange(N), 
+                            self.subsampling_match, replace=False)
+            else:
+                sub = slice(None)
+            Vg = self.variance_via_matching(Y[sub], Z[sub], Xc[sub], 
+                                prop_idv[sub], prop_neigh[sub,g], size, G[sub] == g)
             result['se'][g] = np.sqrt(Vg/(N/size))
         return result
     
     
-    def variance_via_matching(self, Y_g, Z_g, Xc_g, prop_1, prop_g, size):
-        idx1 = Z_g == 1
-        Y1_g = Y_g[idx1]
-        Y0_g = Y_g[~idx1]
-        Xc1_g = Xc_g[idx1]
-        Xc0_g = Xc_g[~idx1]
+    def variance_via_matching(self, Y, Z, Xc, q, pg, size, idx_g):
+        idx1 = Z == 1
+        Y1_g = Y[idx1 & idx_g]
+        Y0_g = Y[(~idx1) & idx_g]
+        Xc1_g = Xc[idx1 & idx_g]
+        Xc0_g = Xc[(~idx1) & idx_g]
         # Standardize Xc
+        Xc_s = Xc/np.sqrt(np.var(Xc, axis=0))
         X1 = Xc1_g/np.sqrt(np.var(Xc1_g, axis=0))
         X0 = Xc0_g/np.sqrt(np.var(Xc0_g, axis=0))
-        # Matching for treated units
-        c_for_t = self.mat_match_mat(X1, X0, self.n_matches)
-        t_for_t = self.mat_match_mat(X1, X1, self.n_matches+1)
-        beta1 = np.mean(Y1_g[t_for_t], axis=1) - np.mean(Y0_g[c_for_t], axis=1)
-        var1_t = np.var(Y1_g[t_for_t], axis=1)
-        var1_c = np.var(Y0_g[c_for_t], axis=1)
-        # Matching for control units
-        t_for_c = self.mat_match_mat(X0, X1, self.n_matches)
-        c_for_c = self.mat_match_mat(X0, X0, self.n_matches+1)
-        beta0 = np.mean(Y1_g[t_for_c], axis=1) - np.mean(Y0_g[c_for_c], axis=1)
-        var0_t = np.var(Y1_g[t_for_c], axis=1)
-        var0_c = np.var(Y0_g[c_for_c], axis=1)
-        # stacking
-        pg = np.append(prop_g[idx1], prop_g[~idx1])
-        q = np.append(prop_1[idx1], prop_1[~idx1])
-        beta = np.append(beta1, beta0)
-        var_t = np.append(var1_t, var0_t)
-        var_c = np.append(var1_c, var0_c)
+        # Matching for all units
+        match_t = self.mat_match_mat(Xc_s, X1, self.n_matches)
+        match_c = self.mat_match_mat(Xc_s, X0, self.n_matches)
+        beta = np.mean(Y1_g[match_t], axis=1) - np.mean(Y0_g[match_c], axis=1)
+        var_t = np.var(Y1_g[match_t], axis=1)
+        var_c = np.var(Y0_g[match_c], axis=1)
         # calculate Vg
         arr = var_t/(pg*q) + var_c/(pg*(1-q)) + (beta - np.mean(beta))**2
         Vg = np.mean(arr)/size
