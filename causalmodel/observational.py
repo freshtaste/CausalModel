@@ -26,10 +26,10 @@ class Observational(PotentialOutcome):
     
         
     def estimate(self):
-        return self.est_via_ipw(LogisticRegression)
+        return self.est_via_ipw()
     
     
-    def est_via_ipw(self, PropensityModel, propensity=None, normalize=True):
+    def est_via_ipw(self, PropensityModel=LogisticRegression(), propensity=None, normalize=True):
         if propensity is not None:
             self.propensity = propensity
         else:
@@ -49,8 +49,8 @@ class Observational(PotentialOutcome):
         return self._get_results(ate, se)
     
     
-    def est_via_aipw(self, OutcomeModel, PropensityModel, treated_pred=None, 
-                     control_pred=None, propensity=None):
+    def est_via_aipw(self, OutcomeModel=OLS(), PropensityModel=LogisticRegression(), 
+                     treated_pred=None, control_pred=None, propensity=None):
         # compute conditional mean and propensity score
         if treated_pred is not None:
             self.treated_pred = treated_pred
