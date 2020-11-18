@@ -94,7 +94,7 @@ class Experimental(PotentialOutcome):
     
     
     @staticmethod
-    def ReM(X):
+    def rerand(Z, X):
         pass
     
     
