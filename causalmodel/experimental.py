@@ -50,7 +50,6 @@ class Experimental(PotentialOutcome):
         ate = ols.params[1]
         se = ols.HC0_se[1]
         return self._get_results(ate, se)
-        
     
     
     def test_via_fisher(self, n=1000):
@@ -93,9 +92,9 @@ class Experimental(PotentialOutcome):
         return True
     
     
-    @staticmethod
-    def rerand(Z, X):
-        pass
     
-    
-
+def rerandomization(X, design, criteria, threshold, max_iter=1000):
+    Z = design()
+    while criteria(Z, X) > threshold:
+        Z = design()
+    return Z
