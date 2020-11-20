@@ -1,5 +1,5 @@
 import numpy as np
-from potentialoutcome import PotentialOutcome
+from .potentialoutcome import PotentialOutcome
 import statsmodels.api as sm 
 
 
