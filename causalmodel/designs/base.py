@@ -5,7 +5,7 @@ from causalmodel.potentialoutcome import POdata
 class DesignBase(object):
     
     
-    def __init__(self, params, covariate=None, balance=False,):
+    def __init__(self, params, covariate=None, balance=False):
         self.params = params
         self.X = covariate
         self.balance = balance

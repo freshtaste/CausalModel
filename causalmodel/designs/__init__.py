@@ -1,1 +1,1 @@
-"""The :mod:`causalmodel.designs` module includes base, ...., designs"""from .base import DesignBase__all__ =[    'DesignBase'    ]
+"""The :mod:`causalmodel.designs` module includes base, ...., designs"""from .base import DesignBasefrom .crd import CRDfrom .bernoulli import Bernoulli__all__ =[    'DesignBase',    'CRD',    'Bernoulli'    ]
