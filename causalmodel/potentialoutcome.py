@@ -1,5 +1,5 @@
 import numpy as np
-from result import Result
+from .result import Result
 from scipy.stats import norm
 
 

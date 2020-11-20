@@ -1,7 +1,7 @@
 import numpy as np
-from potentialoutcome import POdata
-from observational import Observational
-from LearningModels import LogisticRegression, MultiLogisticRegression
+from .potentialoutcome import POdata
+from .observational import Observational
+from .LearningModels import LogisticRegression, MultiLogisticRegression
 from collections import Counter
 
 

@@ -1,7 +1,7 @@
 import numpy as np
-from potentialoutcome import PotentialOutcome
+from .potentialoutcome import PotentialOutcome
 import warnings
-from LearningModels import LogisticRegression, OLS
+from .LearningModels import LogisticRegression, OLS
 from scipy.spatial.distance import cdist
 
 
