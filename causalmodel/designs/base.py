@@ -5,12 +5,16 @@ from causalmodel.potentialoutcome import POdata
 class DesignBase(object):
     
     
-    def __init__(self, params, covariate=None, balance=False):
+    def __init__(self, params, covariate=None, balance=False,
+                 eps=0.1, max_iter=1000):
         self.params = params
         self.X = covariate
         self.balance = balance
+        self.eps = eps
+        self.max_iter = max_iter
     
-    def est_via_obs(self, Z):
+    
+    def get_params_via_obs(self, Z):
         pass
     
     

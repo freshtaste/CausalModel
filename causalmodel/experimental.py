@@ -1,15 +1,17 @@
 import numpy as np
 from .potentialoutcome import PotentialOutcome
+from .designs import CRD
 import statsmodels.api as sm 
 
 
 class Experimental(PotentialOutcome):
     
-    def __init__(self, Y, Z, X=None, design="CRD"):
+    def __init__(self, Y, Z, X=None, design=CRD):
         if X is None:
             X = np.ones(Y.shape)
         super(self.__class__, self).__init__(Y,Z,X)
-        self.design = self.load_design(design)
+        self.design = design
+        self.design.get_params_via_obs(Z)
         self.stats = None
         self.cal_stats = None
         
@@ -55,7 +57,7 @@ class Experimental(PotentialOutcome):
     def test_via_fisher(self, n=1000):
         T_s = np.zeros(n)
         for i in range(n):
-            Z_s = self.design()
+            Z_s = self.design.draw(n)
             T_s[i] = self.cal_stats(Z_s)
         pval = min(np.mean(T_s > self.stats), np.mean(T_s < self.stats))
         return pval
@@ -67,34 +69,10 @@ class Experimental(PotentialOutcome):
         v2 = np.var(Y[Z==0])
         se = np.sqrt(v1/np.sum(Z==1)+ v2/np.sum(Z==0))
         return ate, se
-            
-    
-    def load_design(self, design):
-        if design == "CRD":
-            return lambda : np.random.choice(self.data.Z, self.data.n, replace=False)
-        if design == "Bernoulli":
-            p1 = np.mean(self.data.Z)
-            return lambda : np.random.choice([0,1], self.data.n, p=[1-p1, p1])
-        if callable(design):
-            if self.verify_design(design):
-                return design
-            else:
-                raise RuntimeError("{} is not a valid assignment function.".format(design))
-        else:
-            raise RuntimeError("{} is not a valid assignment function.".format(design))
-    
-    
-    def verify_design(self, design):
-        for i in range(10):
-            zs = design()
-            if set(zs) != set(self.data.Z) or len(zs) != len(self.data.Z):
-                return False
-        return True
-    
     
     
 def rerandomization(X, design, criteria, threshold, max_iter=1000):
-    Z = design()
+    Z = design.draw()
     while criteria(Z, X) > threshold:
-        Z = design()
+        Z = design.draw()
     return Z

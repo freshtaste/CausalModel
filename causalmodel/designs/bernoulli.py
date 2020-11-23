@@ -1,16 +1,19 @@
 import numpy as np
-from .base import DesignBase, get_balance
+from .crd import CRD
 
-class Bernoulli(DesignBase):
+class Bernoulli(CRD):
     
     
-    def __init__(self, treated_prob=0.5, covariate=None, balance=False):
-        super(self.__class__, self).__init__(treated_prob, covariate, balance)
+    def __init__(self, treated_prob=0.5, covariate=None, balance=False,
+                 eps=0.1, max_iter=1000):
+        super(self.__class__, self).__init__(treated_prob, covariate, 
+                                    balance, eps, max_iter)
     
     
-    def est_via_obs(self, Z):
-        return np.mean(Z)
+    def _get_template(self, n):
+        self.template = None
+        
     
-    
-    def draw(self, n):
-        pass
+    def _draw(self, n):
+        Z = np.random.choice([0,1],n)
+        return Z
