@@ -10,7 +10,7 @@ class Clustered(Observational):
     def __init__(self, Y, Z, X, cluster_label, cluster_feature=None, n_moments=1, 
             prop_idv_model=LogisticRegression(), prop_neigh_model=MultiLogisticRegression(), 
             n_matches=10, subsampling_match=2000):
-        #super(self.__class__, self).__init__(Y,Z,X) TD DO: fix inheret
+        super(Observational, self).__init__(Y,Z,X)
         self.data = ClusterData(Y, Z, X, cluster_label, cluster_feature, n_moments)
         self.prop_idv_model = prop_idv_model
         self.prop_neigh_model = prop_neigh_model

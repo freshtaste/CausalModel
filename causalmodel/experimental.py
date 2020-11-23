@@ -6,7 +6,7 @@ import statsmodels.api as sm
 
 class Experimental(PotentialOutcome):
     
-    def __init__(self, Y, Z, X=None, design=CRD):
+    def __init__(self, Y, Z, X=None, design=CRD()):
         if X is None:
             X = np.ones(Y.shape)
         super(self.__class__, self).__init__(Y,Z,X)
@@ -57,7 +57,7 @@ class Experimental(PotentialOutcome):
     def test_via_fisher(self, n=1000):
         T_s = np.zeros(n)
         for i in range(n):
-            Z_s = self.design.draw(n)
+            Z_s = self.design.draw(self.data.n)
             T_s[i] = self.cal_stats(Z_s)
         pval = min(np.mean(T_s > self.stats), np.mean(T_s < self.stats))
         return pval

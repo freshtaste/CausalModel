@@ -1,5 +1,7 @@
 import numpy as np
+import warnings
 from .base import DesignBase, get_balance
+
 
 class CRD(DesignBase):
     
@@ -18,7 +20,7 @@ class CRD(DesignBase):
     def draw(self, n):
         self._get_template(n)
         if self.balance:
-            if self.covariate is None:
+            if self.X is None:
                 raise RuntimeError("covariate must be provided if balance is True.")
             else:
                 Z = self._draw_via_balance(n)
@@ -43,6 +45,8 @@ class CRD(DesignBase):
         count = 0
         while balance > self.eps and count < self.max_iter:
             Z = self._draw(n)
-            balance = get_balance(Z, self.covariate)
+            balance = get_balance(Z, self.X)
             count += 1
+        if balance > self.eps:
+            warnings.warn("Exceed maximum iterations without converging.")
         return Z
