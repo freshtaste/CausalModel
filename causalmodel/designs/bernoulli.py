@@ -2,7 +2,7 @@ import numpy as np
 from .crd import CRD
 
 class Bernoulli(CRD):
-    
+    """Bernoulli randomized experiments"""
     
     def __init__(self, treated_prob=0.5, covariate=None, balance=False,
                  eps=0.1, max_iter=1000):
