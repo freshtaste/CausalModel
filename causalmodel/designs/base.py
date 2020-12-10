@@ -38,15 +38,15 @@ def get_balance(Z, X):
 
     Parameters
     ----------
-    Z : TYPE
-        DESCRIPTION.
-    X : TYPE
-        DESCRIPTION.
+    Z : numpy.ndarray
+        Treatment vector.
+    X : numpy.ndarray
+        Covariates.
 
     Returns
     -------
-    m : TYPE
-        DESCRIPTION.
+    m : float
+        balancing criterion.
 
     """
     n = len(Z)
