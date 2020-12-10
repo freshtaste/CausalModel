@@ -70,9 +70,3 @@ class Experimental(PotentialOutcome):
         se = np.sqrt(v1/np.sum(Z==1)+ v2/np.sum(Z==0))
         return ate, se
     
-    
-def rerandomization(X, design, criteria, threshold, max_iter=1000):
-    Z = design.draw()
-    while criteria(Z, X) > threshold:
-        Z = design.draw()
-    return Z
