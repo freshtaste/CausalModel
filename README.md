@@ -1,8 +1,8 @@
 # CausalModel
 
-*CausalModel* started as a personal exploration and implementation of casual inference methods widely used in statistics and economics. Started in 2020, the project aims to incorporate most of the causal inference models and methods, and in the end become a feasible package for causal inference researchers both in the industry and academia. Before that, we will start adding tools from classic causal inference methods in observational and experimental studies.
+*CausalModel* implements numerous casual inference methods widely used in statistics and economics. Started in 2020, the project aims to incorporate popular the causal inference models and methods, and possibly become a package for causal inference researchers both in the industry and academia.
 
-The repository gets updated from time to time. Tools and models are added in a way that is mainly driven by personal interests. The current version includes:
+The repository gets updated from time to time. Tools and models are added in an order that is mainly driven by personal interests. The current version includes:
 
 * IPW and Augumented IPW (doubly robust) estimators
 * Mathcing
