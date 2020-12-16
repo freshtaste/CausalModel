@@ -4,7 +4,7 @@ from scipy.stats import norm
 
 
 class PotentialOutcome(object):
-    
+    """ base class for data of Rubin Causal model/potential outcome model, i.e. (Y, Z, X)"""
     
     def __init__(self, Y, Z, X):
         
@@ -34,6 +34,7 @@ class PotentialOutcome(object):
     
     
 class POdata(object):
+    """ base class for holding and processing the data of potential outcome model"""
     
     
     def __init__(self, Y, Z, X):
