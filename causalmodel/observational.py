@@ -6,9 +6,22 @@ from scipy.spatial.distance import cdist
 
 
 class Observational(PotentialOutcome):
-    
+    """ Estimate causal effects with observational data """
     
     def __init__(self, Y, Z, X):
+        """
+        Initialization with input data
+
+        Parameters
+        ----------
+        Y : numpy.ndarray
+            Outcomes or response.
+        Z : numpy.ndarray
+            Treatment vector (binary).
+        X : numpy.ndarray
+            Covariates.
+            
+        """
         
         super(self.__class__, self).__init__(Y,Z,X)
         self.propensity = None
@@ -18,6 +31,18 @@ class Observational(PotentialOutcome):
     
     
     def est_propensity(self, PropensityModel):
+        """
+        Estiamte propensity score
+
+        Parameters
+        ----------
+        PropensityModel : LearningModels inherited from sklearn
+
+        Returns
+        -------
+        Propensity score.
+
+        """
         # Estiamte propensity score with learning model for propensity score: 
         # Z ~ X (binary classfication)
         prop_model = PropensityModel
@@ -26,10 +51,29 @@ class Observational(PotentialOutcome):
     
         
     def estimate(self):
+        """ default estimation method""" 
         return self.est_via_ipw()
     
     
     def est_via_ipw(self, PropensityModel=LogisticRegression(), propensity=None, normalize=True):
+        """
+        Estimate average treatment effects with IPW method.
+
+        Parameters
+        ----------
+        PropensityModel : LearningModel, optional
+            Estimation model for propensity scores. The default is LogisticRegression().
+        propensity : numpy.ndarray, optional
+            Optional input for a given proensity score. The default is None.
+        normalize : boolean, optional
+            Normalize weights by 1 if True. The default is True.
+
+        Returns
+        -------
+        Result class
+            A Result object containning relevant statistics.
+
+        """
         if propensity is not None:
             self.propensity = propensity
         else:
@@ -51,6 +95,7 @@ class Observational(PotentialOutcome):
     
     def est_via_aipw(self, OutcomeModel=OLS(), PropensityModel=LogisticRegression(), 
                      treated_pred=None, control_pred=None, propensity=None):
+        """ Similar to est_via_aipw except that need to specify the outcome model"""
         # compute conditional mean and propensity score
         if treated_pred is not None:
             self.treated_pred = treated_pred
@@ -83,7 +128,24 @@ class Observational(PotentialOutcome):
         
     
     def est_via_matching(self, num_matches=1, num_matches_for_var=None, bias_adj=False):
-        
+        """
+        Averge treatment effects with matching algorithm.
+
+        Parameters
+        ----------
+        num_matches : int, optional
+            Number of matched units. The default is 1.
+        num_matches_for_var : int, optional
+            Number of matched units for nonparametric variance estimation. The default is None.
+        bias_adj : boolean, optional
+            Include the adjustment of bias term if True. The default is False.
+
+        Returns
+        -------
+        Result class
+            A Result object containning relevant statistics.
+
+        """
         Xt, Yt, Xc, Yc = self.data.Xt, self.data.Yt, self.data.Xc, self.data.Yc
         nt, nc, n = self.data.nt, self.data.nc, self.data.n
         M, J = num_matches, num_matches_for_var
@@ -139,6 +201,7 @@ class Observational(PotentialOutcome):
     
     
     def _fix_propensity(self):
+        """ add a small number 'eps' if propensity score is zero"""
         if self.propensity is not None:
             num_bad_prop = np.sum((self.propensity*(1-self.propensity)) == 0)
             if num_bad_prop > 0:
