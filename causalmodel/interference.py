@@ -6,6 +6,7 @@ from collections import Counter
 
 
 class Clustered(Observational):
+    """Estimate casual effects under clustered interference setting. """
     
     def __init__(self, Y, Z, X, cluster_label, cluster_feature=None, n_moments=1, 
             prop_idv_model=LogisticRegression(), prop_neigh_model=MultiLogisticRegression(), 
