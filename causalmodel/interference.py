@@ -1,7 +1,7 @@
 import numpy as np
 from .potentialoutcome import POdata
 from .observational import Observational
-from .LearningModels import LogisticRegression, MultiLogisticRegression
+from .LearningModels import LogisticRegression, MultiLogisticRegression, OLS
 from collections import Counter
 
 
@@ -16,16 +16,24 @@ class Clustered(Observational):
         self.prop_neigh_model = prop_neigh_model
         self.n_matches = n_matches
         self.subsampling_match = subsampling_match
+        
+    
+    def est_via_ipw(self):
+        return self._est()
+    
+    
+    def est_via_aipw(self):
+        return self._est(method='aipw')
             
         
-    def est_via_ipw(self):
+    def _est(self, method='ipw'):
         sizes = sorted(list(self.data.data_by_size.keys()))
         size_max = max(sizes)
         total_result = {}
         for size in sizes:
             Mn = len(self.data.data_by_size[size][0])/size
             pn = Mn/self.data.M
-            result = self.est_subsample(size)
+            result = self.est_subsample(size, method)
             taug = result['beta(g)']
             Vg = result['se']**2*Mn
             total_result[size] = (pn, taug, Vg)
@@ -50,16 +58,24 @@ class Clustered(Observational):
         return prop_idv, prop_neigh
     
     
-    def est_subsample(self, size):
+    def est_subsample(self, size, method='ipw'):
         Y, Z, G, Xc, labels = self.data.data_by_size[size]
         N = len(Y)
         prop_idv, prop_neigh = self.est_propensity(Z, G, Xc)
         result = {'beta(g)': np.zeros(size), 'se': np.zeros(size)}
+        linear_model = OLS()
         for g in range(size):
-            w1 = (G == g) * Z /(prop_neigh[:,g]*prop_idv) 
-            w0 = (G == g) * (1 - Z)/(prop_neigh[:,g]*(1-prop_idv))
-            arr = Y * w1/(np.sum(w1)/N) - Y * w0/(np.sum(w0)/N)
-            result['beta(g)'][g] = np.mean(arr)
+            # fit outcome model for aipw
+            linear_model.fit(Xc[(G==g) & (Z==1)], Y[(G==g) & (Z==1)])
+            mu1g = linear_model.predict(Xc)
+            linear_model.fit(Xc[(G==g) & (Z==0)], Y[(G==g) & (Z==0)])
+            mu0g = linear_model.predict(Xc)
+            if method == 'ipw':
+                result['beta(g)'][g] = self._ipw_formula(Y, Z, G, prop_idv, prop_neigh, g)
+            elif method == 'aipw':
+                result['beta(g)'][g] = self._aipw_formula(Y, Z, G, prop_idv, prop_neigh, g, mu1g, mu0g)
+            else:
+                raise RuntimeError("Incorrect input of estimation method.")
             if self.subsampling_match <= N:
                 sub = np.random.choice(np.arange(N), 
                             self.subsampling_match, replace=False)
@@ -70,6 +86,24 @@ class Clustered(Observational):
             result['se'][g] = np.sqrt(Vg/(N/size))
         return result
     
+    
+    def _ipw_formula(self, Y, Z, G, prop_idv, prop_neigh, g):
+        N = len(Y)
+        w1 = (G == g) * Z /(prop_neigh[:,g]*prop_idv) 
+        w0 = (G == g) * (1 - Z)/(prop_neigh[:,g]*(1-prop_idv))
+        arr = Y * w1/(np.sum(w1)/N) - Y * w0/(np.sum(w0)/N)
+        beta_g = np.mean(arr)
+        return beta_g
+    
+    
+    def _aipw_formula(self, Y, Z, G, prop_idv, prop_neigh, g, mu1g, mu0g):
+        N = len(Y)
+        w1 = (G == g) * Z /(prop_neigh[:,g]*prop_idv) 
+        w0 = (G == g) * (1 - Z)/(prop_neigh[:,g]*(1-prop_idv))
+        arr = (Y - mu1g) * w1/(np.sum(w1)/N) - (Y - mu0g) * w0/(np.sum(w0)/N) + mu1g - mu0g
+        beta_g = np.mean(arr)
+        return beta_g
+               
     
     def variance_via_matching(self, Y, Z, Xc, q, pg, size, idx_g):
         idx1 = Z == 1
