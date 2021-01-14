@@ -3,6 +3,7 @@ from .potentialoutcome import PotentialOutcome
 import warnings
 from .LearningModels import LogisticRegression, OLS
 from scipy.spatial.distance import cdist
+from sklearn.model_selection import KFold
 
 
 class Observational(PotentialOutcome):
@@ -198,6 +199,39 @@ class Observational(PotentialOutcome):
         
         se = np.sqrt(V/n)
         return self._get_results(ate, se)
+    
+    
+    def est_via_dml(self, OutcomeModel=OLS(), TreatmentModel=LogisticRegression(),
+                    Kfolds=2):
+        """
+        When the treatment is not binary, using double/debiased ML is preferable.
+
+        Parameters
+        ----------
+        OutcomeModel : LearningModel, optional
+            Prediction of the outcome model as Y = f(X) + U. The default is OLS().
+        TreatmentModel : LearningModel, optional
+            Prediction of the treatment model as Z = g(X) + V. The default is LogisticRegression().
+        Kfolds : number of folds for sample splitting and cross-fitting. The default is 2.
+
+        Returns
+        -------
+        None.
+
+        """
+        kf = KFold(n_splits=Kfolds)
+        idx = np.arange(self.data.n)
+        thetas = []
+        for idx_train, idx_test in kf.split(idx):
+            # estimating outcome model
+            OutcomeModel.fit(self.data.X[idx_train], self.data.Y[idx_train])
+            U = self.data.Y[idx_test] - OutcomeModel.predict(self.data.X[idx_test])
+            # estimating treatment model
+            TreatmentModel.fit(self.data.X[idx_train], self.data.Z[idx_train])
+            V = self.data.Z[idx_test] - TreatmentModel.predict(self.data.X[idx_test])
+            # calculate estimator for theta
+            thetas.append(V.dot(U)/V.dot(self.data.Z[idx_test]))
+        
     
     
     def _fix_propensity(self):
