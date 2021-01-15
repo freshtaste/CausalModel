@@ -222,6 +222,8 @@ class Observational(PotentialOutcome):
         kf = KFold(n_splits=Kfolds)
         idx = np.arange(self.data.n)
         thetas = []
+        phi2s = []
+        Js = []
         for idx_train, idx_test in kf.split(idx):
             # estimating outcome model
             OutcomeModel.fit(self.data.X[idx_train], self.data.Y[idx_train])
@@ -230,8 +232,17 @@ class Observational(PotentialOutcome):
             TreatmentModel.fit(self.data.X[idx_train], self.data.Z[idx_train])
             V = self.data.Z[idx_test] - TreatmentModel.predict(self.data.X[idx_test])
             # calculate estimator for theta
-            thetas.append(V.dot(U)/V.dot(self.data.Z[idx_test]))
-        
+            theta = V.dot(U)/V.dot(self.data.Z[idx_test])
+            thetas.append(theta)
+            
+            # calculate standard errors
+            phi2 = (V**2).dot(U-self.data.Z[idx_test]*theta)
+            J = V.dot(self.data.Z[idx_test])
+            phi2s.append(phi2)
+            Js.append(J)
+        ate = np.mean(thetas)
+        se = np.sqrt(np.mean(phi2s)/(np.mean(Js)**2)/self.data.n)
+        return self._get_results(ate, se)
     
     
     def _fix_propensity(self):
