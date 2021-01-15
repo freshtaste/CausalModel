@@ -201,7 +201,7 @@ class Observational(PotentialOutcome):
         return self._get_results(ate, se)
     
     
-    def est_via_dml(self, OutcomeModel=OLS(), TreatmentModel=LogisticRegression(),
+    def est_via_dml(self, OutcomeModel=OLS(), TreatmentModel=OLS(),
                     Kfolds=2):
         """
         When the treatment is not binary, using double/debiased ML is preferable.
@@ -211,7 +211,7 @@ class Observational(PotentialOutcome):
         OutcomeModel : LearningModel, optional
             Prediction of the outcome model as Y = f(X) + U. The default is OLS().
         TreatmentModel : LearningModel, optional
-            Prediction of the treatment model as Z = g(X) + V. The default is LogisticRegression().
+            Prediction of the treatment model as Z = g(X) + V. The default is OLS().
         Kfolds : number of folds for sample splitting and cross-fitting. The default is 2.
 
         Returns
@@ -231,17 +231,19 @@ class Observational(PotentialOutcome):
             # estimating treatment model
             TreatmentModel.fit(self.data.X[idx_train], self.data.Z[idx_train])
             V = self.data.Z[idx_test] - TreatmentModel.predict(self.data.X[idx_test])
+
             # calculate estimator for theta
             theta = V.dot(U)/V.dot(self.data.Z[idx_test])
             thetas.append(theta)
             
             # calculate standard errors
-            phi2 = (V**2).dot(U-self.data.Z[idx_test]*theta)
-            J = V.dot(self.data.Z[idx_test])
+            phi2 = np.mean((V**2)*((U-self.data.Z[idx_test]*theta)**2))
+            J = np.mean(V*self.data.Z[idx_test])
             phi2s.append(phi2)
             Js.append(J)
+
         ate = np.mean(thetas)
-        se = np.sqrt(np.mean(phi2s)/(np.mean(Js)**2)/self.data.n)
+        se = np.sqrt(np.mean(phi2s)/(np.mean(Js)**2))/np.sqrt(self.data.n)
         return self._get_results(ate, se)
     
     

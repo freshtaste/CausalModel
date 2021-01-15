@@ -19,6 +19,17 @@ def get_data(N=10000, k=2, tau=10):
     return Y, Z, X
 
 
+def get_data_continuous(N=10000, k=2, tau=10):
+    """
+    Get the classic (Y,Z,X) random samples with Z being continuous
+
+    """
+    X = np.random.multivariate_normal(np.zeros(k), np.diag(np.ones(k)), N)
+    Z = X.dot(np.linspace(-1,1,k)) + np.random.normal(0,1,N)
+    Y = tau*Z + X.dot(np.linspace(-1,1,k)) + np.random.normal(0,1,N)
+    return Y, Z, X
+
+
 def get_fixed_cluster(N=30000, M=10000, k=2, tau=1, gamma=0.1, label_start=0):
     """
     Get data for fixed cluster size.
