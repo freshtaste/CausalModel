@@ -233,12 +233,12 @@ class Observational(PotentialOutcome):
             V = self.data.Z[idx_test] - TreatmentModel.predict(self.data.X[idx_test])
 
             # calculate estimator for theta
-            theta = V.dot(U)/V.dot(self.data.Z[idx_test])
+            theta = V.dot(U)/V.dot(V)
             thetas.append(theta)
             
             # calculate standard errors
-            phi2 = np.mean((V**2)*((U-self.data.Z[idx_test]*theta)**2))
-            J = np.mean(V*self.data.Z[idx_test])
+            phi2 = np.mean((V**2)*((U-V*theta)**2))
+            J = np.mean(V**2)
             phi2s.append(phi2)
             Js.append(J)
 
