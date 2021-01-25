@@ -6,6 +6,7 @@ The repository gets updated from time to time. Tools and models are added in an 
 
 * IPW and Augumented IPW (doubly robust) estimators
 * Mathcing
+* Double/Debiased ML
 * Neymanian difference in mean estimator
 * Fisher randomization tests
 
