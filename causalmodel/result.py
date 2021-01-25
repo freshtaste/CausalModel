@@ -11,10 +11,18 @@ class Result(object):
         except AttributeError:
             pass
         
+    
+    def __str__(self):
+        output = ('*' * 20 + '\n' 
+            + f'average treatment effect: {self.average_treatment_effect}\n' 
+            + '\n' 
+            + f'standard error:           {self.standard_error}\n' 
+            + '\n' 
+            + f'p value:                  {self.p_value}\n' 
+            + '\n' 
+            + f'confidence interval:      {self.confidence_interval}')
+        return output
+        
 
     def show(self):
-        print('*' * 20)
-        print(f'average treatment effect: {self.average_treatment_effect}\n')
-        print(f'standard error:           {self.standard_error}\n')
-        print(f'p value:                  {self.p_value}\n')
-        print(f'confidence interval:      {self.confidence_interval}')
+        print(self.__str__())
