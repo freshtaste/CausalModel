@@ -52,8 +52,14 @@ class Observational(PotentialOutcome):
     
         
     def estimate(self):
-        """ default estimation method""" 
-        return self.est_via_ipw()
+        """ 
+        Default estimation method based on whether treatment is binary or 
+        continuous. 
+        """ 
+        if len(set(self.data.Z)) == 2:
+            return self.est_via_aipw()
+        else:
+            return self.est_via_dml()
     
     
     def est_via_ipw(self, PropensityModel=LogisticRegression(), propensity=None, normalize=True):
