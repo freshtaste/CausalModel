@@ -1,5 +1,5 @@
 from sklearn.linear_model import LogisticRegression as Logit
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier as RF
 import numpy as np
 
 
@@ -48,7 +48,7 @@ class MultiLogisticRegression(Logit):
         return sklearn_out[np.arange(len(sklearn_out)), self.y]
     
 
-class RandomForest(RandomForestClassifier):
+class RandomForestClassifier(RF):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

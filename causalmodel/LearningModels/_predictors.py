@@ -1,5 +1,5 @@
 from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor as RF
 
 
 class OLS(LinearRegression):
@@ -24,7 +24,7 @@ class OLS(LinearRegression):
         return self.predict(self.X)
     
     
-class RandomForest(RandomForestRegressor):
+class RandomForestRegressor(RF):
     
     def __init__(self, **kwargs):
         self.X = None
@@ -35,11 +35,11 @@ class RandomForest(RandomForestRegressor):
     def fit(self, X, y):
         self.X = X
         self.y = y
-        return super(RandomForest, self).fit(X, y)
+        return super(RandomForestRegressor, self).fit(X, y)
     
     
     def predict(self, X):
-        return super(RandomForest, self).predict(X)
+        return super(RandomForestRegressor, self).predict(X)
     
     
     def insample_predict(self):
