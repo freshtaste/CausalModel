@@ -1,4 +1,5 @@
 import numpy as np
+from statsmodels.api import OLS as LinearRegression
 from .potentialoutcome import POdata
 from .observational import Observational
 from .LearningModels import LogisticRegression, MultiLogisticRegression, OLS
@@ -17,6 +18,20 @@ class Clustered(Observational):
         self.prop_neigh_model = prop_neigh_model
         self.n_matches = n_matches
         self.subsampling_match = subsampling_match
+        
+    
+    def est_via_ols(self):
+        y = np.zeros(self.data.n)
+        regressor = np.zeros(self.data.n, 2+self.data.covariate_dims)
+        idx = 0
+        for k,v in self.data.data_by_size:
+            Y, Z, G, Xc, labels = v
+            y[idx:idx+len(Y)] = Y
+            regressor[idx:idx+len(Y), 0] = Z
+            regressor[idx:idx+len(Y), 1] = G*Z
+            regressor[idx:idx+len(Y), 2:] = Xc
+        ols_model = LinearRegression(y, regressor)
+        ols_model.fit()
         
     
     def est_via_ipw(self):
@@ -197,6 +212,7 @@ class ClusterData(POdata):
         G = np.repeat(np.expand_dims(np.sum(Z, axis=1), axis=1), size, axis=1) - Z
         G = G.reshape(len(Y)).astype(int)
         Z = Z.reshape(len(Y)).astype(int)
+        self.covariate_dims = X.shape[1]
         return (Y, Z, G, X, cluster_label)
         
     
