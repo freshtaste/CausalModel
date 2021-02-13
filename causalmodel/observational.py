@@ -1,4 +1,5 @@
 import numpy as np
+from statsmodels.api import OLS as LinearRegression
 from .potentialoutcome import PotentialOutcome
 import warnings
 from .LearningModels import LogisticRegression, OLS
@@ -23,7 +24,6 @@ class Observational(PotentialOutcome):
             Covariates.
             
         """
-        
         super(self.__class__, self).__init__(Y,Z,X)
         self.propensity = None
         self.treated_pred = None
@@ -60,6 +60,20 @@ class Observational(PotentialOutcome):
             return self.est_via_aipw()
         else:
             return self.est_via_dml()
+    
+    
+    def est_via_ols(self):
+        """
+        Estimate average treatment effects with Linear Regression.
+        """
+        regressor = np.zeros((self.data.n, 1+self.data.X.shape[1]))
+        regressor[:,0] = self.data.Z
+        regressor[:,1:] = self.data.X
+        ols_model = LinearRegression(self.data.Y, regressor)
+        reg_results = ols_model.fit()
+        ate = reg_results.params[0]
+        se = np.sqrt(reg_results.HC0_se[0])
+        return self._get_results(ate, se)
     
     
     def est_via_ipw(self, PropensityModel=LogisticRegression(), propensity=None, normalize=True):
