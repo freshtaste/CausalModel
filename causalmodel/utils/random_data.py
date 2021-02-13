@@ -74,7 +74,7 @@ def get_fixed_cluster(N=30000, M=10000, k=2, tau=1, gamma=0.1, label_start=0):
     G = G_stack.reshape(N)
     # get outcome Y
     epsilon = np.random.normal(0, 1, N)
-    Y = tau*Z + Xc.dot(np.linspace(-1,1,2*k)) + gamma * G *Z + epsilon
+    Y = tau*Z + Xc.dot(np.linspace(-1,1,2*k)) + gamma * np.sqrt(G) *Z + epsilon
     sub = np.random.choice(np.arange(N), N, replace=False)
     return Y[sub], Z[sub], X[sub], labels[sub]
 
