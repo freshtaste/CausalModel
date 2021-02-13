@@ -22,17 +22,23 @@ class Clustered(Observational):
     
     def est_via_ols(self):
         y = np.zeros(self.data.n)
-        regressor = np.zeros(self.data.n, 2+self.data.covariate_dims)
+        regressor = np.zeros((self.data.n, 2+self.data.covariate_dims))
         idx = 0
-        for k,v in self.data.data_by_size:
+        for k,v in self.data.data_by_size.items():
             Y, Z, G, Xc, labels = v
             y[idx:idx+len(Y)] = Y
             regressor[idx:idx+len(Y), 0] = Z
             regressor[idx:idx+len(Y), 1] = G*Z
             regressor[idx:idx+len(Y), 2:] = Xc
         ols_model = LinearRegression(y, regressor)
-        ols_model.fit()
-        
+        result = ols_model.fit()
+        ret = {'beta(g)': np.zeros(max(G)), 'se': np.zeros(max(G))}
+        for g in range(max(G)):
+            ret['beta(g)'][g] = result.params[0] + result.params[1]*g
+            cov_HC0 = result.cov_HC0
+            ret['se'][g] = np.sqrt(result.params[:2].dot(cov_HC0[:2,:2]).dot(result.params[:2]))
+        return ret
+            
     
     def est_via_ipw(self):
         return self._est()
