@@ -23,6 +23,7 @@ class Clustered(Observational):
     def est_via_ols(self):
         y = np.zeros(self.data.n)
         regressor = np.zeros((self.data.n, 2+self.data.covariate_dims))
+        size_max = max(list(self.data.data_by_size.keys()))
         idx = 0
         for k,v in self.data.data_by_size.items():
             Y, Z, G, Xc, labels = v
@@ -32,8 +33,8 @@ class Clustered(Observational):
             regressor[idx:idx+len(Y), 2:] = Xc
         ols_model = LinearRegression(y, regressor)
         result = ols_model.fit()
-        ret = {'beta(g)': np.zeros(max(G)), 'se': np.zeros(max(G))}
-        for g in range(max(G)):
+        ret = {'beta(g)': np.zeros(size_max), 'se': np.zeros(size_max)}
+        for g in range(size_max):
             ret['beta(g)'][g] = result.params[0] + result.params[1]*g
             cov_HC0 = result.cov_HC0
             ret['se'][g] = np.sqrt(result.params[:2].dot(cov_HC0[:2,:2]).dot(result.params[:2]))
