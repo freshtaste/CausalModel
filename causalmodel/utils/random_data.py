@@ -30,7 +30,8 @@ def get_data_continuous(N=10000, k=2, tau=10):
     return Y, Z, X
 
 
-def get_fixed_cluster(N=30000, M=10000, k=2, tau=1, gamma=0.1, label_start=0):
+def get_fixed_cluster(N=30000, M=10000, k=2, tau=1, gamma=0.1, label_start=0,
+                      get_G=False):
     """
     Get data for fixed cluster size.
 
@@ -48,7 +49,8 @@ def get_fixed_cluster(N=30000, M=10000, k=2, tau=1, gamma=0.1, label_start=0):
         Amount of spillover effect. The default is 0.1.
     label_start : int, optional
         The beginning index for cluster labels. The default is 0.
-
+    get_G : Boolean, optional
+        Output G if True
     """
     n = int(N/M)
     # get clustering labels
@@ -74,8 +76,10 @@ def get_fixed_cluster(N=30000, M=10000, k=2, tau=1, gamma=0.1, label_start=0):
     G = G_stack.reshape(N)
     # get outcome Y
     epsilon = np.random.normal(0, 1, N)
-    Y = tau*Z + Xc.dot(np.linspace(-1,1,2*k)) + gamma * np.sqrt(G) *Z + epsilon
+    Y = tau*Z + Xc.dot(np.linspace(-1,1,2*k)) + gamma * G *Z + epsilon
     sub = np.random.choice(np.arange(N), N, replace=False)
+    if get_G:
+        return Y[sub], Z[sub], X[sub], labels[sub], G[sub], Xc[sub]
     return Y[sub], Z[sub], X[sub], labels[sub]
 
 
