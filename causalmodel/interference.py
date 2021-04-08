@@ -11,9 +11,10 @@ class Clustered(Observational):
     
     def __init__(self, Y, Z, X, cluster_label, cluster_feature=None, n_moments=1, 
             prop_idv_model=LogisticRegression(), prop_neigh_model=MultiLogisticRegression(), 
-            n_matches=10, subsampling_match=2000):
+            n_matches=10, subsampling_match=2000, categorical_Z=True):
         super(Observational, self).__init__(Y,Z,X)
-        self.data = ClusterData(Y, Z, X, cluster_label, cluster_feature, n_moments)
+        self.data = ClusterData(Y, Z, X, cluster_label, cluster_feature, 
+                                n_moments, categorical_Z)
         self.prop_idv_model = prop_idv_model
         self.prop_neigh_model = prop_neigh_model
         self.n_matches = n_matches
@@ -31,13 +32,57 @@ class Clustered(Observational):
             regressor[idx:idx+len(Y), 0] = Z
             regressor[idx:idx+len(Y), 1] = G*Z
             regressor[idx:idx+len(Y), 2:] = Xc
+            idx += len(Y)
         ols_model = LinearRegression(y, regressor)
         result = ols_model.fit()
         ret = {'beta(g)': np.zeros(size_max), 'se': np.zeros(size_max)}
+        cov_HC0 = result.cov_HC0
         for g in range(size_max):
             ret['beta(g)'][g] = result.params[0] + result.params[1]*g
-            cov_HC0 = result.cov_HC0
-            ret['se'][g] = np.sqrt(result.params[:2].dot(cov_HC0[:2,:2]).dot(result.params[:2]))
+            test_arr = np.array([1,g])
+            ret['se'][g] = np.sqrt(test_arr.dot(cov_HC0[:2,:2]).dot(test_arr))
+        return ret
+    
+    
+    def est_via_dml(self, outcome_model=OLS(), treatment_model=OLS()):
+        Y = np.zeros(self.data.n)
+        Xc = np.zeros((self.data.n, self.data.covariate_dims))
+        Z = np.zeros(self.data.n)
+        G = np.zeros(self.data.n)
+        Labels = np.zeros(self.data.n)
+        size_max = max(list(self.data.data_by_size.keys()))
+        idx = 0
+        for k,v in self.data.data_by_size.items():
+            y, z, g, xc, labels = v
+            Y[idx:idx+len(y)] = y
+            Xc[idx:idx+len(y)] = xc
+            Z[idx:idx+len(y)] = z
+            G[idx:idx+len(y)] = g
+            Labels[idx:idx+len(y)] = labels
+            idx += len(y)
+        outcome_reg = outcome_model.fit(Xc, Y)
+        treatment_reg = treatment_model.fit(Xc, Z)
+        y_res = Y - outcome_reg.insample_predict()
+        z_res = Z - treatment_reg.insample_predict()
+        data = ClusterData(y_res, z_res, np.zeros((self.data.n,self.data.X.shape[1])), 
+                           Labels, self.data.cluster_feature, self.data.n_moments,
+                           False)
+        z_g_res = np.zeros((self.data.n, 2))
+        y_res = np.zeros(self.data.n)
+        idx = 0
+        for k,v in data.data_by_size.items():
+            y, z, g, xc, labels = v
+            y_res[idx:idx+len(y)] = y
+            z_g_res[idx:idx+len(y),0] = z
+            z_g_res[idx:idx+len(y),1] = g*z
+        ols_model = LinearRegression(y_res, z_g_res)
+        result = ols_model.fit()
+        ret = {'beta(g)': np.zeros(size_max), 'se': np.zeros(size_max)}
+        cov_HC0 = result.cov_HC0
+        for g in range(size_max):
+            ret['beta(g)'][g] = result.params[0] + result.params[1]*g
+            test_arr = np.array([1,g])
+            ret['se'][g] = np.sqrt(test_arr.dot(cov_HC0[:2,:2]).dot(test_arr))
         return ret
             
     
@@ -152,7 +197,8 @@ class Clustered(Observational):
 
 class ClusterData(POdata):
     
-    def __init__(self, Y, Z, X, cluster_label, cluster_feature, n_moments):
+    def __init__(self, Y, Z, X, cluster_label, cluster_feature, n_moments, 
+                 categorical_Z=True):
         self.Y = Y
         self.Z = Z
         self.X = X
@@ -160,6 +206,7 @@ class ClusterData(POdata):
         self.M = len(set(cluster_label))
         self.cluster_feature = cluster_feature
         self.n_moments = n_moments
+        self.categorical_Z = categorical_Z
         if self.verify_clusters():
             self.n = len(Y)
             self.data_by_size = self.split_by_size()
@@ -217,8 +264,11 @@ class ClusterData(POdata):
             X = np.append(X, cluster_feature, axis=2)
         Z = Z.reshape(int(len(Y)/size), size)
         G = np.repeat(np.expand_dims(np.sum(Z, axis=1), axis=1), size, axis=1) - Z
-        G = G.reshape(len(Y)).astype(int)
-        Z = Z.reshape(len(Y)).astype(int)
+        G = G.reshape(len(Y))
+        Z = Z.reshape(len(Y))
+        if self.categorical_Z:
+            G = G.astype(int)
+            Z = Z.astype(int)
         self.covariate_dims = X.shape[1]
         return (Y, Z, G, X, cluster_label)
         
