@@ -20,3 +20,10 @@ obs = Observational(Y, Z, X)
 obs.est_via_ipw(logit_model).show()
 ```
 
+For interference model:
+```
+from interference import Clustered
+
+c = Clustered(Y, Z, X, labels)
+result = c.est_via_aipw().show()
+``` 
