@@ -151,8 +151,8 @@ class Clustered(Observational):
         for g_encoded in range(G_count):
             g = self.decode_G(g_encoded, group_struct)
             # fit outcome model for aipw
-            mask1 = np.all(G==g) & (Z==1)
-            mask0 = np.all(G==g) & (Z==0)
+            mask1 = np.all(G==g, axis=1) & (Z==1)
+            mask0 = np.all(G==g, axis=1) & (Z==0)
             if not np.any(mask1) or not np.any(mask0):
                 # we are left with no sample
                 warnings.warn(f"Skipping g={g} due to absence of sample")
@@ -163,9 +163,9 @@ class Clustered(Observational):
             linear_model.fit(Xc[mask0], Y[mask0])
             mu0g = linear_model.predict(Xc)
             if method == 'ipw':
-                result['beta(g)'][g_encoded] = self._ipw_formula(Y, Z, G, prop_idv, prop_neigh, g)
+                result['beta(g)'][g_encoded] = self._ipw_formula(Y, Z, G, prop_idv, prop_neigh, g, g_encoded)
             elif method == 'aipw':
-                result['beta(g)'][g_encoded] = self._aipw_formula(Y, Z, G, prop_idv, prop_neigh, g, mu1g, mu0g)
+                result['beta(g)'][g_encoded] = self._aipw_formula(Y, Z, G, prop_idv, prop_neigh, g, g_encoded, mu1g, mu0g)
             else:
                 raise ValueError("Incorrect input of estimation method.")
 
@@ -181,19 +181,19 @@ class Clustered(Observational):
         return result
     
     
-    def _ipw_formula(self, Y, Z, G, prop_idv, prop_neigh, g):
+    def _ipw_formula(self, Y, Z, G, prop_idv, prop_neigh, g, g_encoded):
         N = len(Y)
-        w1 = (G == g) * Z /(prop_neigh[:,g]*prop_idv) 
-        w0 = (G == g) * (1 - Z)/(prop_neigh[:,g]*(1-prop_idv))
+        w1 = np.all(G==g, axis=1) * Z /(prop_neigh[:,g_encoded]*prop_idv) 
+        w0 = np.all(G==g, axis=1) * (1 - Z)/(prop_neigh[:,g_encoded]*(1-prop_idv))
         arr = Y * w1/(np.sum(w1)/N) - Y * w0/(np.sum(w0)/N)
         beta_g = np.mean(arr)
         return beta_g
     
     
-    def _aipw_formula(self, Y, Z, G, prop_idv, prop_neigh, g, mu1g, mu0g):
+    def _aipw_formula(self, Y, Z, G, prop_idv, prop_neigh, g, g_encoded, mu1g, mu0g):
         N = len(Y)
-        w1 = (G == g) * Z /(prop_neigh[:,g]*prop_idv) 
-        w0 = (G == g) * (1 - Z)/(prop_neigh[:,g]*(1-prop_idv))
+        w1 = np.all(G==g, axis=1) * Z /(prop_neigh[:,g_encoded]*prop_idv) 
+        w0 = np.all(G==g, axis=1) * (1 - Z)/(prop_neigh[:,g_encoded]*(1-prop_idv))
         arr = (Y - mu1g) * w1/(np.sum(w1)/N) - (Y - mu0g) * w0/(np.sum(w0)/N) + mu1g - mu0g
         beta_g = np.mean(arr)
         return beta_g
