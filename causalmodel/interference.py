@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.lib.arraysetops import isin
 from statsmodels.api import OLS as LinearRegression
 from .potentialoutcome import POdata
 from .observational import Observational
@@ -9,11 +10,11 @@ from collections import Counter
 class Clustered(Observational):
     """Estimate casual effects under clustered interference setting. """
     
-    def __init__(self, Y, Z, X, cluster_label, cluster_feature=None, n_moments=1, 
+    def __init__(self, Y, Z, X, cluster_labels, group_labels, cluster_feature=None, n_moments=1, 
             prop_idv_model=LogisticRegression(), prop_neigh_model=MultiLogisticRegression(), 
             n_matches=10, subsampling_match=2000, categorical_Z=True):
         super(Observational, self).__init__(Y,Z,X)
-        self.data = ClusterData(Y, Z, X, cluster_label, cluster_feature, 
+        self.data = ClusterData(Y, Z, X, cluster_labels, group_labels, cluster_feature, 
                                 n_moments, categorical_Z)
         self.prop_idv_model = prop_idv_model
         self.prop_neigh_model = prop_neigh_model
@@ -22,8 +23,8 @@ class Clustered(Observational):
         
     
     def est_via_ols(self):
-        y = np.zeros(self.data.n)
-        regressor = np.zeros((self.data.n, 2+self.data.covariate_dims))
+        y = np.zeros(self.data.units)
+        regressor = np.zeros((self.data.units, 2+self.data.covariate_dims))
         size_max = max(list(self.data.data_by_size.keys()))
         idx = 0
         for k,v in self.data.data_by_size.items():
@@ -45,11 +46,11 @@ class Clustered(Observational):
     
     
     def est_via_dml(self, outcome_model=OLS(), treatment_model=OLS()):
-        Y = np.zeros(self.data.n)
-        Xc = np.zeros((self.data.n, self.data.covariate_dims))
-        Z = np.zeros(self.data.n)
-        G = np.zeros(self.data.n)
-        Labels = np.zeros(self.data.n)
+        Y = np.zeros(self.data.units)
+        Xc = np.zeros((self.data.units, self.data.covariate_dims))
+        Z = np.zeros(self.data.units)
+        G = np.zeros(self.data.units)
+        Labels = np.zeros(self.data.units)
         size_max = max(list(self.data.data_by_size.keys()))
         idx = 0
         for k,v in self.data.data_by_size.items():
@@ -64,11 +65,11 @@ class Clustered(Observational):
         treatment_reg = treatment_model.fit(Xc, Z)
         y_res = Y - outcome_reg.insample_predict()
         z_res = Z - treatment_reg.insample_predict()
-        data = ClusterData(y_res, z_res, np.zeros((self.data.n,self.data.X.shape[1])), 
+        data = ClusterData(y_res, z_res, np.zeros((self.data.units, self.data.X.shape[1])), 
                            Labels, self.data.cluster_feature, self.data.n_moments,
                            False)
-        z_g_res = np.zeros((self.data.n, 2))
-        y_res = np.zeros(self.data.n)
+        z_g_res = np.zeros((self.data.units, 2))
+        y_res = np.zeros(self.data.units)
         idx = 0
         for k,v in data.data_by_size.items():
             y, z, g, xc, labels = v
@@ -127,8 +128,7 @@ class Clustered(Observational):
     
     
     def est_subsample(self, size, method='ipw'):
-        Y, Z, G, Xc, labels = self.data.data_by_size[size]
-        N = len(Y)
+        Y, Z, G, Xc, cluster_labels, group_labels = self.data.data_by_size[size]
         prop_idv, prop_neigh = self.est_propensity(Z, G, Xc)
         result = {'beta(g)': np.zeros(size), 'se': np.zeros(size)}
         linear_model = OLS()
@@ -143,15 +143,16 @@ class Clustered(Observational):
             elif method == 'aipw':
                 result['beta(g)'][g] = self._aipw_formula(Y, Z, G, prop_idv, prop_neigh, g, mu1g, mu0g)
             else:
-                raise RuntimeError("Incorrect input of estimation method.")
-            if self.subsampling_match <= N:
-                sub = np.random.choice(np.arange(N), 
+                raise ValueError("Incorrect input of estimation method.")
+
+            if self.subsampling_match <= self.data.units:
+                sub = np.random.choice(np.arange(self.data.units), 
                             self.subsampling_match, replace=False)
             else:
                 sub = slice(None)
             Vg = self.variance_via_matching(Y[sub], Z[sub], Xc[sub], 
                                 prop_idv[sub], prop_neigh[sub,g], size, G[sub] == g)
-            result['se'][g] = np.sqrt(Vg/(N/size))
+            result['se'][g] = np.sqrt(Vg/(self.data.units/size))
         return result
     
     
@@ -197,18 +198,19 @@ class Clustered(Observational):
 
 class ClusterData(POdata):
     
-    def __init__(self, Y, Z, X, cluster_label, cluster_feature, n_moments, 
-                 categorical_Z=True):
+    def __init__(self, Y, Z, X, cluster_labels, group_labels,
+            cluster_feature, n_moments, categorical_Z=True):
         self.Y = Y
         self.Z = Z
         self.X = X
-        self.cluster_label = cluster_label
-        self.M = len(set(cluster_label))
+        self.cluster_labels = cluster_labels
+        self.M = len(set(cluster_labels))
+        self.group_labels = group_labels
         self.cluster_feature = cluster_feature
         self.n_moments = n_moments
         self.categorical_Z = categorical_Z
+        self.units = len(Y)
         if self.verify_clusters():
-            self.n = len(Y)
             self.data_by_size = self.split_by_size()
         
     
@@ -216,89 +218,91 @@ class ClusterData(POdata):
         """
         Split the data into {size: (Y, Z, G, Xc, labels)}
         """
-        sizes = Counter(self.cluster_label)
-        cluster_size = np.array([sizes[c] for c in self.cluster_label])
+        sizes = Counter(self.cluster_labels)
+        cluster_size = np.array([sizes[c] for c in self.cluster_labels])
         arg = np.argsort(cluster_size)
         cluster_size_sorted = cluster_size[arg]
         data_by_size = {}
         idx1 = 0
-        for idx2 in range(self.n):
-            if cluster_size_sorted[idx2] != cluster_size_sorted[idx1] or idx2 == self.n-1:
-                if idx2 == self.n - 1:
-                    idx2 = self.n
+        for idx2 in range(self.units):
+            if cluster_size_sorted[idx2] != cluster_size_sorted[idx1] or idx2 == self.units:
+                if idx2 == self.units - 1:
+                    idx2 = self.units
                 idx = arg[idx1:idx2]
                 if self.cluster_feature:
                     cluster_feature_i = self.cluster_feature[idx]
                 else:
                     cluster_feature_i = None
                 data_by_size[cluster_size_sorted[idx1]] = self.get_final_tuple(self.Y[idx], 
-                        self.Z[idx], self.X[idx], self.cluster_label[idx],
+                        self.Z[idx], self.X[idx], self.cluster_labels[idx], self.group_labels[idx],
                         cluster_feature_i, cluster_size_sorted[idx1])
                 idx1 = idx2
         return data_by_size
     
     
-    def get_final_tuple(self, Y, Z, X, cluster_label, cluster_feature, size):
+    def get_final_tuple(self, Y, Z, X, cluster_labels, group_labels, cluster_feature, size):
         """
-            Process the X and cluster_feature to obtain the full covariates matrix.
-            Compute G, # of treated neighbours.
+        Process the X and cluster_feature to obtain the full covariates matrix.
+        Compute G, # of treated neighbours.
         """
-        arg = np.argsort(cluster_label)
+        arg = np.argsort(cluster_labels)
         Y = Y[arg]
         Z = Z[arg]
         X = X[arg]
-        cluster_label = cluster_label[arg]
-        X = X.reshape(int(len(Y)/size), size, X.shape[1])
+        cluster_labels = cluster_labels[arg]
+        group_labels = group_labels[arg]
+
+        units, k = X.shape
+        X = X.reshape(units//size, size, k)
         if self.n_moments > 0:
-            mu = np.mean(X, axis=1)
-            f1 = np.repeat(np.expand_dims(mu, axis=1), size, axis=1)
-            X_centered = X - f1
+            mu = np.mean(X, axis=1, keepdims=True)
+            f1 = np.repeat(mu, size, axis=1)
             X = np.append(X, f1, axis=2)
+            X_centered = X - f1
             for i in range(1, self.n_moments):
-                mi = np.mean(np.power(X_centered, self.n_moments+1), axis=1)
-                fi = np.repeat(np.expand_dims(mi, axis=1), len(X),axis=1)
+                mi = np.mean(np.power(X_centered, i+1), axis=1, keepdims=True)
+                fi = np.repeat(mi, len(X), axis=1)
                 X = np.append(X, fi, axis=2)
-        X = X.reshape(len(Y), X.shape[2])
+        X = X.reshape(units, k)
+
         if cluster_feature:
             cluster_feature = cluster_feature[arg]
             X = np.append(X, cluster_feature, axis=2)
-        Z = Z.reshape(int(len(Y)/size), size)
-        G = np.repeat(np.expand_dims(np.sum(Z, axis=1), axis=1), size, axis=1) - Z
-        G = G.reshape(len(Y))
-        Z = Z.reshape(len(Y))
+
+        Z = Z.reshape(units//size, size)
+        G = np.repeat(np.sum(Z, axis=1, keepdims=True), size, axis=1) - Z
+        G = G.reshape(units)
+        Z = Z.reshape(units)
         if self.categorical_Z:
             G = G.astype(int)
             Z = Z.astype(int)
-        self.covariate_dims = X.shape[1]
-        return (Y, Z, G, X, cluster_label)
+        self.covariate_dims = k
+        return Y, Z, G, X, cluster_labels, group_labels
         
     
     def verify_clusters(self):
         if not self.verify_yzx():
             return False
-        if not (isinstance(self.cluster_label, np.ndarray) \
+
+        if not (isinstance(self.cluster_labels, np.ndarray)
+                and isinstance(self.group_labels, np.ndarray)
                 and isinstance(self.n_moments, int)):
-            raise RuntimeError("Incorrect input type for cluster_label(np.ndarray) or n_moments(int).")
-            return False
-        if not len(self.cluster_label) == len(self.X):
-            raise RuntimeError("Incorrect input shape for cluster_label. Should have n rows.")
-            return False
-        if self.n_moments < 0:
-            raise RuntimeError("Incorrect value for n_moments. Should be positive integers.")
-            return False
-            return False
-        if not len(self.cluster_label.shape) == 1:
-            raise RuntimeError("Incorrect shape for cluster_label. Should be (n,).")
-            return False
+            raise ValueError("Incorrect input type for cluster_labels, group_labels (np.ndarray) or n_moments (int).")
+        if not self.cluster_labels.shape == (self.units, ):
+            raise ValueError("Incorrect shape for cluster_labels. Should be `(units, )`.")
+        if not self.group_labels.shape == (self.units, ):
+            raise ValueError("Incorrect shape for group_labels. Should be `(units, )`.")
+        if not self.n_moments >= 0:
+            raise ValueError("Incorrect value for n_moments. Should be a non-negative integer.")
+
         if self.cluster_feature:
-            if isinstance(self.cluster_feature, np.ndarray):
-                raise RuntimeError("Incorrect input type for cluster_feature(np.ndarray)")
-                return False
-            if not len(self.cluster_feature) == len(self.X):
-                raise RuntimeError("Incorrect input shape for cluster_feature. Should have n rows.")
-                return False
+            if not isinstance(self.cluster_feature, np.ndarray):
+                raise ValueError("Incorrect input type for cluster_feature (np.ndarray)")
+            if not len(self.cluster_feature) == self.units:
+                raise ValueError("Incorrect input shape for cluster_feature. Should have `units` rows.")
             if not len(self.cluster_feature.shape) == 2:
-                raise RuntimeError("Incorrect shape for cluster_feature. Should be n by m.")
+                raise ValueError("Incorrect shape for cluster_feature. Should be `(units, *)`.")
+
         return True
     
     

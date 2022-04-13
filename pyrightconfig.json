@@ -1,0 +1,8 @@
+{
+    "include": [
+        "matfact",
+        "test",
+    ],
+    "venvPath": ".",
+    "venv": ".venv",
+}
