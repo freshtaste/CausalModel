@@ -1,10 +1,10 @@
+import warnings
+
 import numpy as np
-from numpy.lib.arraysetops import isin
 from statsmodels.api import OLS as LinearRegression
 from .potentialoutcome import POdata
 from .observational import Observational
 from .LearningModels import LogisticRegression, MultiLogisticRegression, OLS
-from collections import Counter
 
 
 class Clustered(Observational):
@@ -14,7 +14,7 @@ class Clustered(Observational):
             prop_idv_model=LogisticRegression(), prop_neigh_model=MultiLogisticRegression(), 
             n_matches=10, subsampling_match=2000, categorical_Z=True):
         super(Observational, self).__init__(Y,Z,X)
-        self.data = ClusterData(Y, Z, X, cluster_labels, group_labels, cluster_feature, 
+        self.data = ClusterData(Y, Z, X, cluster_labels, group_labels, cluster_feature,
                                 n_moments, categorical_Z)
         self.prop_idv_model = prop_idv_model
         self.prop_neigh_model = prop_neigh_model
@@ -96,17 +96,19 @@ class Clustered(Observational):
             
         
     def _est(self, method='ipw'):
-        sizes = sorted(list(self.data.data_by_size.keys()))
-        size_max = max(sizes)
+        group_structs = sorted(list(self.data.data_by_group_struct.keys()))
+        group_struct_num = len(group_structs)
         total_result = {}
-        for size in sizes:
-            Mn = len(self.data.data_by_size[size][0])/size
+        for group_struct in group_structs:
+            size = np.sum(group_struct)
+            Mn = len(self.data.data_by_group_struct[group_struct][0])/size
             pn = Mn/self.data.M
-            result = self.est_subsample(size, method)
+            result = self.est_subsample(group_struct, method)
             taug = result['beta(g)']
             Vg = result['se']**2*Mn
             total_result[size] = (pn, taug, Vg)
-        ret = {'beta(g)': np.zeros(size_max), 'se': np.zeros(size_max)}
+        ret = {'beta(g)': np.zeros(group_struct_num), 'se': np.zeros(group_struct_num)}
+        # FIXME: weighted sum?
         for g in range(size_max):
             key_vals = np.array([[pn, taug[g], Vg[g]] for n, (pn, taug, Vg)
                         in total_result.items() if g < n])
@@ -122,37 +124,60 @@ class Clustered(Observational):
     def est_propensity(self, Z, G, Xc):
         idv = self.prop_idv_model.fit(Xc, Z)
         prop_idv = idv.insample_proba()
-        neigh = self.prop_neigh_model.fit(Xc, G)
+        neigh = self.prop_neigh_model.fit(Xc, G)    # assuming Z is independent
         prop_neigh = neigh.predict_proba(Xc)
         return prop_idv, prop_neigh
     
+    def encode_G(self, G, group_struct):
+        weight = np.append(1, np.cumprod(np.array(group_struct[:-1]) + 1))
+        return np.sum(G * weight, axis=1)
+
+    def decode_G(self, G_encoded, group_struct):
+        weight = np.append(1, np.cumprod(np.array(group_struct[:-1]) + 1))
+        G_encoded = np.copy(G_encoded)
+        G_rev = []
+        for w in reversed(weight):
+            G_rev.append(G_encoded // w)
+            G_encoded %= w
+        return np.vstack(tuple(reversed(G_rev))).T
     
-    def est_subsample(self, size, method='ipw'):
-        Y, Z, G, Xc, cluster_labels, group_labels = self.data.data_by_size[size]
-        prop_idv, prop_neigh = self.est_propensity(Z, G, Xc)
-        result = {'beta(g)': np.zeros(size), 'se': np.zeros(size)}
+    def est_subsample(self, group_struct, method='ipw'):
+        Y, Z, G, Xc, cluster_labels, group_labels = self.data.data_by_group_struct[group_struct]
+        G_encoded = self.encode_G(G, group_struct)
+        prop_idv, prop_neigh = self.est_propensity(Z, G_encoded, Xc)
+        G_count = np.prod(np.array(group_struct)+1)
+        result = {'beta(g)': np.zeros(G_count), 'se': np.zeros(G_count)}
         linear_model = OLS()
-        for g in range(size):
+        for g_encoded in range(G_count):
+            g = self.decode_G(g_encoded, group_struct)
             # fit outcome model for aipw
-            linear_model.fit(Xc[(G==g) & (Z==1)], Y[(G==g) & (Z==1)])
+            mask1 = np.all(G==g) & (Z==1)
+            mask0 = np.all(G==g) & (Z==0)
+            if not np.any(mask1) or not np.any(mask0):
+                # we are left with no sample
+                warnings.warn(f"Skipping g={g} due to absence of sample")
+                continue
+
+            linear_model.fit(Xc[mask1], Y[mask1])
             mu1g = linear_model.predict(Xc)
-            linear_model.fit(Xc[(G==g) & (Z==0)], Y[(G==g) & (Z==0)])
+            linear_model.fit(Xc[mask0], Y[mask0])
             mu0g = linear_model.predict(Xc)
             if method == 'ipw':
-                result['beta(g)'][g] = self._ipw_formula(Y, Z, G, prop_idv, prop_neigh, g)
+                result['beta(g)'][g_encoded] = self._ipw_formula(Y, Z, G, prop_idv, prop_neigh, g)
             elif method == 'aipw':
-                result['beta(g)'][g] = self._aipw_formula(Y, Z, G, prop_idv, prop_neigh, g, mu1g, mu0g)
+                result['beta(g)'][g_encoded] = self._aipw_formula(Y, Z, G, prop_idv, prop_neigh, g, mu1g, mu0g)
             else:
                 raise ValueError("Incorrect input of estimation method.")
 
-            if self.subsampling_match <= self.data.units:
-                sub = np.random.choice(np.arange(self.data.units), 
-                            self.subsampling_match, replace=False)
-            else:
-                sub = slice(None)
-            Vg = self.variance_via_matching(Y[sub], Z[sub], Xc[sub], 
-                                prop_idv[sub], prop_neigh[sub,g], size, G[sub] == g)
-            result['se'][g] = np.sqrt(Vg/(self.data.units/size))
+            # if self.subsampling_match <= self.data.units:
+            #     sub = np.random.choice(np.arange(self.data.units), 
+            #                 self.subsampling_match, replace=False)
+            # else:
+            #     sub = slice(None)
+            # Vg = self.variance_via_matching(Y[sub], Z[sub], Xc[sub], 
+            #                     prop_idv[sub], prop_neigh[sub,g], size, G[sub] == g)
+            # result['se'][g] = np.sqrt(Vg/(self.data.units/size))
+
         return result
     
     
@@ -211,21 +236,25 @@ class ClusterData(POdata):
         self.categorical_Z = categorical_Z
         self.units = len(Y)
         if self.verify_clusters():
-            self.data_by_size = self.split_by_size()
+            self.data_by_group_struct = self.split_by_group_struct()
         
     
-    def split_by_size(self):
+    def split_by_group_struct(self):
         """
-        Split the data into {size: (Y, Z, G, Xc, labels)}
+        Split the data into {group_struct: (Y, Z, G, Xc, labels)}
         """
-        sizes = Counter(self.cluster_labels)
-        cluster_size = np.array([sizes[c] for c in self.cluster_labels])
-        arg = np.argsort(cluster_size)
-        cluster_size_sorted = cluster_size[arg]
-        data_by_size = {}
+        group_structs = np.zeros((np.max(self.cluster_labels)+1, np.max(self.group_labels)+1), dtype=int)
+        for c, g in zip(self.cluster_labels, self.group_labels):
+            group_structs[c][g] += 1
+
+        cluster_group_structs = group_structs[self.cluster_labels]
+        arg = np.lexsort(cluster_group_structs.T[::-1])
+        cluster_group_structs_sorted = cluster_group_structs[arg]
+        data_by_group_struct = {}
         idx1 = 0
         for idx2 in range(self.units):
-            if cluster_size_sorted[idx2] != cluster_size_sorted[idx1] or idx2 == self.units:
+            if not np.all(cluster_group_structs_sorted[idx2] == cluster_group_structs_sorted[idx1]) \
+                    or idx2 == self.units:
                 if idx2 == self.units - 1:
                     idx2 = self.units
                 idx = arg[idx1:idx2]
@@ -233,14 +262,18 @@ class ClusterData(POdata):
                     cluster_feature_i = self.cluster_feature[idx]
                 else:
                     cluster_feature_i = None
-                data_by_size[cluster_size_sorted[idx1]] = self.get_final_tuple(self.Y[idx], 
+
+                group_struct = tuple(cluster_group_structs_sorted[idx1])
+                data_by_group_struct[group_struct] = self.get_final_tuple(self.Y[idx], 
                         self.Z[idx], self.X[idx], self.cluster_labels[idx], self.group_labels[idx],
-                        cluster_feature_i, cluster_size_sorted[idx1])
+                        cluster_feature_i, group_struct)
+
                 idx1 = idx2
-        return data_by_size
+
+        return data_by_group_struct
     
     
-    def get_final_tuple(self, Y, Z, X, cluster_labels, group_labels, cluster_feature, size):
+    def get_final_tuple(self, Y, Z, X, cluster_labels, group_labels, cluster_feature, group_struct):
         """
         Process the X and cluster_feature to obtain the full covariates matrix.
         Compute G, # of treated neighbours.
@@ -252,27 +285,35 @@ class ClusterData(POdata):
         cluster_labels = cluster_labels[arg]
         group_labels = group_labels[arg]
 
+        nunit_per_cluster = np.sum(group_struct)
+        ngroup_per_cluster = len(group_struct)
         units, k = X.shape
-        X = X.reshape(units//size, size, k)
+        clusters = units//nunit_per_cluster
+        X = X.reshape(units//nunit_per_cluster, nunit_per_cluster, k)
         if self.n_moments > 0:
             mu = np.mean(X, axis=1, keepdims=True)
-            f1 = np.repeat(mu, size, axis=1)
-            X = np.append(X, f1, axis=2)
+            f1 = np.repeat(mu, nunit_per_cluster, axis=1)
             X_centered = X - f1
+            X = np.append(X, f1, axis=2)
             for i in range(1, self.n_moments):
                 mi = np.mean(np.power(X_centered, i+1), axis=1, keepdims=True)
                 fi = np.repeat(mi, len(X), axis=1)
                 X = np.append(X, fi, axis=2)
-        X = X.reshape(units, k)
+        X = X.reshape(units, k * (self.n_moments+1))
 
         if cluster_feature:
             cluster_feature = cluster_feature[arg]
             X = np.append(X, cluster_feature, axis=2)
 
-        Z = Z.reshape(units//size, size)
-        G = np.repeat(np.sum(Z, axis=1, keepdims=True), size, axis=1) - Z
-        G = G.reshape(units)
-        Z = Z.reshape(units)
+        # get G, number of treated neighbours
+        ngroup_per_cluster = len(group_struct)
+        Z_onehot = np.zeros((clusters, nunit_per_cluster, ngroup_per_cluster))
+        cluster_labels_idx = np.cumsum(np.append(0, np.diff(cluster_labels)) > 0)
+        Z_onehot[cluster_labels_idx, np.tile(np.arange(nunit_per_cluster), clusters), group_labels] = Z
+        G_plus = np.sum(Z_onehot, axis=1, keepdims=True)
+        G_stack = G_plus - Z_onehot
+        G = G_stack.reshape(units, ngroup_per_cluster)
+
         if self.categorical_Z:
             G = G.astype(int)
             Z = Z.astype(int)

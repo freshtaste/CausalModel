@@ -30,9 +30,8 @@ def get_data_continuous(N=10000, k=2, tau=10):
     return Y, Z, X
 
 
-def get_fixed_cluster(clusters=10000, ngroup_per_cluster=2, nunit_per_group=3,
-                      k=2, tau=1, gamma=np.array((0.1, 0.01, 0.001)),
-                      label_start=0):
+def get_fixed_cluster(clusters=10000, group_struct=(2, 3, 4),
+                      k=2, tau=1, gamma=None, label_start=0):
     """
     Get data for fixed cluster size.
 
@@ -40,27 +39,32 @@ def get_fixed_cluster(clusters=10000, ngroup_per_cluster=2, nunit_per_group=3,
     ----------
     clusters : int, optional
         Number of clusters. The default is 10000.
-    ngroup_per_cluster : int, optional
-        Number of groups within each cluster. The default is 2.
-    nunit_per_group : int, optional
-        Number of units within each group. The default is 3.
+    group_struct : tuple, optional
+        Group structure within each cluster. For example, (2, 3, 4)
+        means the each cluster has 2 units in the first group, 3
+        units in the second group, and 4 units in the third group.
     k : int, optional
         Number of features for each unit. The default is 2.
     tau : float, optional
         Amount of direct treatment effect. The default is 1.
-    gamma : tuple whose length equals `nunit_per_group`, optional
-        Amount of spillover effect. The default is (0.1, 0.01, 0.001).
+    gamma : tuple, optional
+        Amount of spillover effect. Should have the exact same
+        length as `group_struct`. The default is 0.1 for each
+        group.
     label_start : int, optional
         The beginning index for cluster labels. The default is 0.
     """
-    if len(gamma) != ngroup_per_cluster:
-        raise ValueError(f"len(gamma) = {len(gamma)} != {nunit_per_group} = nunit_per_group")
-    nunit_per_cluster = ngroup_per_cluster * nunit_per_group
+    if gamma is None:
+        gamma = 0.1 * np.ones(len(group_struct))
+    elif len(group_struct) != len(gamma):
+        raise ValueError(f"len(group_struct) = {len(group_struct)} != {len(gamma)} = len(gamma)")
+    nunit_per_cluster = np.sum(group_struct)
     units = clusters * nunit_per_cluster
     # get clustering labels
     cluster_labels = label_start + np.repeat(np.arange(clusters), nunit_per_cluster)
     # get group labels
-    group_labels = np.tile(np.repeat(np.arange(ngroup_per_cluster), nunit_per_group), clusters)
+    group_labels_within_cluster = np.repeat(np.arange(len(group_struct)), group_struct)
+    group_labels = np.tile(group_labels_within_cluster, clusters)
     # get covariates
     X = 0.1 * np.random.multivariate_normal(np.zeros(k), np.eye(k), (clusters, nunit_per_cluster))
     # average within each cluster
@@ -76,6 +80,7 @@ def get_fixed_cluster(clusters=10000, ngroup_per_cluster=2, nunit_per_group=3,
     unif = np.random.uniform(0, 1, units)
     Z[unif < prop_idv] = 1
     # get G, number of treated neighbours
+    ngroup_per_cluster = len(group_struct)
     Z_onehot = np.zeros((clusters, nunit_per_cluster, ngroup_per_cluster))
     Z_onehot[cluster_labels-label_start, np.tile(np.arange(nunit_per_cluster), clusters), group_labels] = Z
     G_plus = np.sum(Z_onehot, axis=1, keepdims=True)
@@ -90,19 +95,17 @@ def get_fixed_cluster(clusters=10000, ngroup_per_cluster=2, nunit_per_group=3,
 
 def get_clustered_data(
         clusters_list=[5000, 5000, 2000],
-        ngroup_per_cluster=3,
-        nunit_per_group_list=[7, 11, 13]):
+        group_struct_list=[(2, 3, 4), (3, 4, 5), (4, 5, 6)]):
     """
     Get data for varying cluster sizes
 
     Parameters
     ----------
     clusters_list : list, optional
-        List of # clusters. The default is [5000,5000,2000].
-    ngroup_per_cluster : int, optional
-        The common # groups within each cluster. All clusters must share the same `ngroup_per_cluster` value. The default is 3.
-    nunit_per_group_list : list, optional
-        List of # units within each cluster. The default is [7,11,13].
+        List of # clusters. The default is [5000, 5000, 2000].
+    group_struct_list : list of tuple tuple, optional
+        The group structure of each clusters. The default is
+        [(2, 3, 4), (3, 4, 5), (4, 5, 6)].
 
     Returns
     -------
@@ -110,11 +113,9 @@ def get_clustered_data(
         Output data [Y, Z, X, labels].
 
     """
-    label_start_list = [0, *np.cumsum(clusters_list)[:-1]]
-    # FIXME: if `ngroup_per_cluster` is not 3, we need to pass in `gamma`
-    zipped = list(zip(*[list(get_fixed_cluster(clusters, ngroup_per_cluster, nunit_per_group,
-                                               label_start=label_start)) 
-                        for clusters, nunit_per_group, label_start
-                        in zip(clusters_list, nunit_per_group_list, label_start_list)]))
+    label_start_list = [0, *np.cumsum(clusters_list[:-1])]
+    zipped = list(zip(*[list(get_fixed_cluster(clusters, group_struct, label_start=label_start))
+        for clusters, group_struct, label_start
+        in zip(clusters_list, group_struct_list, label_start_list)]))
     return [np.concatenate(Vs) for Vs in zipped]
 
