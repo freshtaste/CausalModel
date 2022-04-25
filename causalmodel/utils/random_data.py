@@ -88,14 +88,16 @@ def get_fixed_cluster(clusters=10000, group_struct=(2, 3, 4),
     G = G_stack.reshape(units, ngroup_per_cluster)
     # get outcome Y
     epsilon = np.random.normal(0, 1, units)
-    Y = tau*Z + Xc.dot(np.linspace(-1,1,2*k)) + (G@gamma) *Z + epsilon
+    Y = tau*Z + Xc.dot(np.linspace(-1,1,2*k)) + (G@gamma) * Z + epsilon
     sub = np.random.choice(np.arange(units), units, replace=False)
     return Y[sub], Z[sub], X[sub], cluster_labels[sub], group_labels[sub], G[sub], Xc[sub]
 
 
 def get_clustered_data(
         clusters_list=[5000, 5000, 2000],
-        group_struct_list=[(2, 3, 4), (3, 4, 5), (4, 5, 6)]):
+        group_struct_list=[(2, 3, 4), (3, 4, 5), (4, 5, 6)],
+        tau=1,
+        gamma=(5, 0, 1)):
     """
     Get data for varying cluster sizes
 
@@ -103,9 +105,15 @@ def get_clustered_data(
     ----------
     clusters_list : list, optional
         List of # clusters. The default is [5000, 5000, 2000].
-    group_struct_list : list of tuple tuple, optional
-        The group structure of each clusters. The default is
+    group_struct_list : list of tuple, optional
+        The group structure of each cluster. The default is
         [(2, 3, 4), (3, 4, 5), (4, 5, 6)].
+    tau : float, optional
+        Amount of direct treatment effect. This attribute is
+        common to all clusters. The default is 1.
+    gamma_list: tuple, optional
+        The group spillover effect of each group. This attribute
+        is common to all clusters. The default is (5, 0, 1).
 
     Returns
     -------
@@ -114,7 +122,7 @@ def get_clustered_data(
 
     """
     label_start_list = [0, *np.cumsum(clusters_list[:-1])]
-    zipped = list(zip(*[list(get_fixed_cluster(clusters, group_struct, label_start=label_start))
+    zipped = list(zip(*[list(get_fixed_cluster(clusters, group_struct, tau=tau, gamma=gamma, label_start=label_start))
         for clusters, group_struct, label_start
         in zip(clusters_list, group_struct_list, label_start_list)]))
     return [np.concatenate(Vs) for Vs in zipped]

@@ -1,5 +1,3 @@
-import warnings
-
 import numpy as np
 from statsmodels.api import OLS as LinearRegression
 from .potentialoutcome import POdata
@@ -97,7 +95,6 @@ class Clustered(Observational):
         
     def _est(self, method='ipw'):
         group_structs = sorted(list(self.data.data_by_group_struct.keys()))
-        group_struct_num = len(group_structs)
         total_result = {}
         for group_struct in group_structs:
             size = np.sum(group_struct)
@@ -106,18 +103,32 @@ class Clustered(Observational):
             result = self.est_subsample(group_struct, method)
             taug = result['beta(g)']
             Vg = result['se']**2*Mn
-            total_result[size] = (pn, taug, Vg)
-        ret = {'beta(g)': np.zeros(group_struct_num), 'se': np.zeros(group_struct_num)}
-        # FIXME: weighted sum?
-        for g in range(size_max):
-            key_vals = np.array([[pn, taug[g], Vg[g]] for n, (pn, taug, Vg)
-                        in total_result.items() if g < n])
-            w =  key_vals[:,0]/np.sum(key_vals[:,0])
-            taug_n = key_vals[:,1]
-            Vg_n = key_vals[:,2]
-            ret['beta(g)'][g] = w.dot(taug_n)
-            Vg1 = Vg_n.dot(w**2/key_vals[:,0])
-            ret['se'][g] = np.sqrt(Vg1/self.data.M)
+            total_result[group_struct] = (pn, taug, Vg)
+
+        max_group_struct = np.maximum.reduce(group_structs)
+        ret = {
+            'beta(g)': np.zeros(max_group_struct+1),
+            'se': np.zeros(max_group_struct+1)
+        }
+        G_count = np.prod(max_group_struct+1)
+        for G_encoded in range(G_count):
+            g = self.decode_G(G_encoded, max_group_struct)
+            key_vals = []
+            for gg, (pn, taug, Vg) in total_result.items():
+                if np.all(gg >= g) and not np.all(gg == g):
+                    encoded = self.encode_G(g, gg)
+                    key_vals.append([pn, taug[encoded].item(), Vg[encoded].item()])
+            key_vals = np.array(key_vals)
+
+            if key_vals.size:
+                key = tuple(g.squeeze())
+                w = key_vals[:,0]/np.sum(key_vals[:,0])
+                taug_n = key_vals[:,1]
+                Vg_n = key_vals[:,2]
+                ret['beta(g)'][key] = w.dot(taug_n)
+                Vg1 = Vg_n.dot(w**2/key_vals[:,0])
+                ret['se'][key] = np.sqrt(Vg1/self.data.M)
+
         return ret
         
     
@@ -155,7 +166,7 @@ class Clustered(Observational):
             mask0 = np.all(G==g, axis=1) & (Z==0)
             if not np.any(mask1) or not np.any(mask0):
                 # we are left with no sample
-                warnings.warn(f"Skipping g={g} due to absence of sample")
+                result['beta(g)'][g_encoded] = np.nan
                 continue
 
             linear_model.fit(Xc[mask1], Y[mask1])
@@ -254,7 +265,7 @@ class ClusterData(POdata):
         idx1 = 0
         for idx2 in range(self.units):
             if not np.all(cluster_group_structs_sorted[idx2] == cluster_group_structs_sorted[idx1]) \
-                    or idx2 == self.units:
+                    or idx2 == self.units - 1:
                 if idx2 == self.units - 1:
                     idx2 = self.units
                 idx = arg[idx1:idx2]
