@@ -65,6 +65,9 @@ def get_fixed_cluster(clusters=10000, group_struct=(2, 3, 4),
     # get group labels
     group_labels_within_cluster = np.repeat(np.arange(len(group_struct)), group_struct)
     group_labels = np.tile(group_labels_within_cluster, clusters)
+    # get in-group labels
+    ingroup_labels_within_cluster = np.concatenate([np.arange(g) for g in group_struct])
+    ingroup_labels = np.tile(ingroup_labels_within_cluster, clusters)
     # get covariates
     X = 0.1 * np.random.multivariate_normal(np.zeros(k), np.eye(k), (clusters, nunit_per_cluster))
     # average within each cluster
@@ -90,7 +93,7 @@ def get_fixed_cluster(clusters=10000, group_struct=(2, 3, 4),
     epsilon = np.random.normal(0, 1, units)
     Y = tau*Z + Xc.dot(np.linspace(-1,1,2*k)) + (G@gamma) * Z + epsilon
     sub = np.random.choice(np.arange(units), units, replace=False)
-    return Y[sub], Z[sub], X[sub], cluster_labels[sub], group_labels[sub], G[sub], Xc[sub]
+    return Y[sub], Z[sub], X[sub], cluster_labels[sub], group_labels[sub], ingroup_labels[sub], G[sub], Xc[sub]
 
 
 def get_clustered_data(
