@@ -1,5 +1,4 @@
 import numpy as np
-from statsmodels.api import OLS as LinearRegression
 from .potentialoutcome import POdata
 from .observational import Observational
 from .LearningModels import LogisticRegression, MultiLogisticRegression, OLS
@@ -60,7 +59,7 @@ class Clustered(Observational):
                 key_vals = np.array(key_vals)
 
                 if key_vals.size:
-                    key = tuple(g.squeeze())
+                    key = tuple(g.squeeze(axis=0))
                     w = key_vals[:,0]/np.sum(key_vals[:,0])
 
                     taug_n = key_vals[:,1]
@@ -89,12 +88,12 @@ class Clustered(Observational):
     
 
     def encode_G(self, G, group_struct):
-        weight = np.append(1, np.cumprod(np.array(group_struct[:-1]) + 1))
+        weight = np.append(1, np.cumprod(np.array(group_struct[:-1], dtype=int) + 1))
         return np.sum(G * weight, axis=1)
 
 
     def decode_G(self, G_encoded, group_struct):
-        weight = np.append(1, np.cumprod(np.array(group_struct[:-1]) + 1))
+        weight = np.append(1, np.cumprod(np.array(group_struct[:-1], dtype=int) + 1))
         G_encoded = np.copy(G_encoded)
         G_rev = []
         for w in reversed(weight):
@@ -160,7 +159,8 @@ class Clustered(Observational):
             for j, size in enumerate(group_struct):
                 Vg = self.variance_via_matching(Y[sub], Z[sub], Xc[sub], ingroup_labels[sub], group_struct,
                                     prop_idv[sub], prop_neigh[sub, g_encoded], size, np.all(G[sub] == g, axis=1))
-                result[j]['se'][g_encoded] = np.sqrt(Vg/(N/size))
+                M = N/size
+                result[j]['se'][g_encoded] = np.sqrt(Vg/M)
 
         return result
     
@@ -189,24 +189,32 @@ class Clustered(Observational):
         Y0_g = Y[(~idx1) & idx_g]
         Xc1_g = Xc[idx1 & idx_g]
         Xc0_g = Xc[(~idx1) & idx_g]
+
         # Standardize Xc
         Xc_s = Xc/np.sqrt(np.var(Xc, axis=0))
         X1 = Xc1_g/np.sqrt(np.var(Xc1_g, axis=0))
         X0 = Xc0_g/np.sqrt(np.var(Xc0_g, axis=0))
-        # Matching for all units
+
+        # Match for all units
         match_t = self.mat_match_mat(Xc_s, X1, self.n_matches)
         match_c = self.mat_match_mat(Xc_s, X0, self.n_matches)
-        beta = np.mean(Y1_g[match_t], axis=1) - np.mean(Y0_g[match_c], axis=1)
 
-        beta_j = [beta[ingroup_labels == j] for j in range(len(group_struct))]
+        # Calculate Vg
+        arr_all = []
+        for i in range(len(group_struct)):
+            mask = ingroup_labels == i
+            var_t = np.var(Y1_g[match_t][mask], axis=1)
+            var_c = np.var(Y0_g[match_c][mask], axis=1)
+            arr = var_t/(pg[mask]*q[mask]) + var_c/(pg[mask]*(1-q[mask]))
+            arr_all.append(np.mean(arr))
+
+        beta = np.mean(Y1_g[match_t], axis=1) - np.mean(Y0_g[match_c], axis=1)
+        beta_j = [beta[ingroup_labels == i] for i in range(len(group_struct))]
         min_len = min(len(bi) for bi in beta_j)
         beta_mat = np.column_stack([bi[:min_len] for bi in beta_j])
+        cov = np.cov(beta_mat, rowvar=False, bias=True)
 
-        var_t = np.var(Y1_g[match_t], axis=1)
-        var_c = np.var(Y0_g[match_c], axis=1)
-        # calculate Vg
-        arr = var_t/(pg*q) + var_c/(pg*(1-q))
-        Vg = np.mean(arr)/size + np.sum(np.cov(beta_mat, bias=True))
+        Vg = (sum(arr_all) + np.sum(cov))/size**2
         return Vg
     
 

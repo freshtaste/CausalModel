@@ -11,7 +11,7 @@ The repository gets updated from time to time. Tools and models are added in an 
 * Fisher randomization tests
 
 To use the package, first determine whether your data is from an observational study or experimental study. Then, import the corresponding class and call the functions of estimators. For example:
-```
+```python
 from observational import Observational
 from LearningModels import LogisticRegression
 
@@ -21,7 +21,7 @@ obs.est_via_ipw(logit_model).show()
 ```
 
 For interference model:
-```
+```python
 from interference import Clustered
 
 c = Clustered(Y, Z, X, labels)

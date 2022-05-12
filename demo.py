@@ -23,7 +23,7 @@ def demo():
     se_ensemble = np.empty((replications, 2, 4, 4))
     np.random.seed(42)
     for rep in range(replications):
-        print(f'Replication #{rep}')
+        print(f'Replication #{rep+1}/{replications}')
         Y, Z, X, cluster_labels, group_labels, ingroup_labels, _, _ = \
                 get_clustered_data(clusters_list, group_struct_list, tau, gamma)
         c = Clustered(Y, Z, X, cluster_labels, group_labels, ingroup_labels)
@@ -33,18 +33,22 @@ def demo():
             se_ensemble[rep, j, :, :] = result[j]['se']
 
     sns.set()
-    fig, axes = plt.subplots(4, 4, figsize=(16, 8))
     for j in range(2):
-        for i in range(4):
-            for ii in range(4):
+        rows, cols = 4-(j==0), 4-(j==1)
+        fig, axes = plt.subplots(rows, cols, figsize=(24, 16))
+        for i in range(rows):
+            for ii in range(cols):
                 studentized = (beta_ensemble[:, j, i, ii] - ground_truth[i, ii])/se_ensemble[:, j, i, ii]
-                sns.histplot(studentized, stat='probability', ax=axes[i, ii]).set(ylabel=None)
+                sns.histplot(studentized, stat='density', ax=axes[i, ii]).set(ylabel=None)
+                print(f'j={j}', f'i={i}', f'ii={ii}', f'var(t)={np.var(studentized)}')
 
                 x_pdf = np.linspace(np.min(studentized), np.max(studentized), 100)
                 y_pdf = stats.norm.pdf(x_pdf)
                 axes[i, ii].plot(x_pdf, y_pdf)
+                axes[i, ii].set_title(f'g=({i}, {ii})')
 
-        fig.savefig(f'demo{j}.png', dpi=400, bbox_inches='tight')
+        fig.suptitle(f'Studentized beta estimation for group #{j}', fontsize='xx-large')
+        fig.savefig(f'demo{j}_{replications}.png', dpi=400, bbox_inches='tight')
         fig.clf()
 
 
