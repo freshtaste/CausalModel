@@ -18,7 +18,7 @@ def simplified():
     grid = np.arange(i)
     ground_truth = tau + np.sum(gamma[:, np.newaxis] * grid, axis=0)
 
-    replications = 5000
+    replications = 500000
     beta_ensemble = np.empty((replications, 4))
     se_ensemble = np.empty((replications, 4))
     np.random.seed(42)

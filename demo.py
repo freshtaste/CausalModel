@@ -18,7 +18,7 @@ def demo():
     grid = np.array(np.meshgrid(np.arange(i), np.arange(j), indexing='ij'))
     ground_truth = tau + np.sum(gamma[:, np.newaxis, np.newaxis] * grid, axis=0)
 
-    replications = 1000
+    replications = 50000
     beta_ensemble = np.empty((replications, 2, 4, 4))
     se_ensemble = np.empty((replications, 2, 4, 4))
     np.random.seed(42)

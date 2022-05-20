@@ -103,7 +103,8 @@ class Clustered(Observational):
 
 
     def est_subsample(self, group_struct, method='ipw'):
-        Y, Z, G, Xc, _, group_labels, ingroup_labels = self.data.data_by_group_struct[group_struct]
+        Y, Z, G, Xc, cluster_labels, group_labels, ingroup_labels = self.data.data_by_group_struct[group_struct]
+        M = len(set(cluster_labels))
         N = len(Y)
         G_encoded = self.encode_G(G, group_struct)
         prop_idv, prop_neigh = self.est_propensity(Z, G_encoded, Xc)
@@ -159,7 +160,6 @@ class Clustered(Observational):
             for j, size in enumerate(group_struct):
                 Vg = self.variance_via_matching(Y[sub], Z[sub], Xc[sub], ingroup_labels[sub], group_struct,
                                     prop_idv[sub], prop_neigh[sub, g_encoded], size, np.all(G[sub] == g, axis=1))
-                M = N/size
                 result[j]['se'][g_encoded] = np.sqrt(Vg/M)
 
         return result
@@ -214,7 +214,7 @@ class Clustered(Observational):
         beta_mat = np.column_stack([bi[:min_len] for bi in beta_j])
         cov = np.cov(beta_mat, rowvar=False, bias=True)
 
-        Vg = (sum(arr_all) + np.sum(cov))/size**2
+        Vg = sum(arr_all)/size + np.sum(cov)/size**2
         return Vg
     
 
