@@ -21,7 +21,7 @@ def demo():
 
     ground_truth = tau + gamma
 
-    replications = 5000
+    replications = 20000
     beta_ensemble = np.empty((replications, 2, 4, 4))
     se_ensemble = np.empty((replications, 2, 4, 4))
     np.random.seed(42)
