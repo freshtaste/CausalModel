@@ -213,8 +213,13 @@ class Clustered(Observational):
         min_len = min(len(bi) for bi in beta_j)
         beta_mat = np.column_stack([bi[:min_len] for bi in beta_j])
         cov = np.cov(beta_mat, rowvar=False, bias=True)
+        if cov.shape == ():
+            # prompt the variance to a covariance matrix when there is only one group in group_struct
+            cov.shape = (1, 1)
+        off_diag = np.copy(cov)
+        np.fill_diagonal(off_diag, 0)
 
-        Vg = sum(arr_all)/size + np.sum(cov)/size**2
+        Vg = sum(arr_all)/size + np.sum(np.diag(cov))/size + np.sum(off_diag)/size**2
         return Vg
     
 

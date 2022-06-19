@@ -1,4 +1,4 @@
-.PHONY: demo test
+.PHONY: demo simplified test
 
 demo:
 	pipenv run python3 demo.py
