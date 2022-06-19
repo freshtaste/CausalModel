@@ -11,12 +11,15 @@ def demo():
     clusters_list = [800, 1200, 1600]
     group_struct_list = [(2, 2), (3, 2), (3, 3)]
     tau = 42
-    gamma = np.array([-0.5, 1.2])
+    gamma_marginal = np.array([-0.5, 1.2])
 
     max_group_struct = np.maximum.reduce(group_struct_list)
-    i, j = max_group_struct + 1
-    grid = np.array(np.meshgrid(np.arange(i), np.arange(j), indexing='ij'))
-    ground_truth = tau + np.sum(gamma[:, np.newaxis, np.newaxis] * grid, axis=0)
+    grid = np.array(np.meshgrid(*(np.arange(i+1) for i in max_group_struct), indexing='ij'))
+    grid = np.moveaxis(grid, 0, -1)
+    gamma = grid @ gamma_marginal
+    gamma[1, 3] = gamma[2, 0] = gamma[3, 2] = -2.5  # add some interactions
+
+    ground_truth = tau + gamma
 
     replications = 5000
     beta_ensemble = np.empty((replications, 2, 4, 4))
