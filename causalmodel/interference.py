@@ -8,8 +8,8 @@ class Clustered(Observational):
     """Estimate casual effects under clustered interference setting. """
     
     def __init__(self, Y, Z, X, cluster_labels, group_labels, ingroup_labels, cluster_feature=None, n_moments=1, 
-            prop_idv_model=LogisticRegression(), prop_neigh_model=MultiLogisticRegression(), 
-            n_matches=10, subsampling_match=2000, categorical_Z=True):
+            prop_idv_model=LogisticRegression(), prop_neigh_model=MultiLogisticRegression(solver='saga'),
+            n_matches=100, subsampling_match=2000, categorical_Z=True):
         super(Observational, self).__init__(Y, Z, X)
         self.data = ClusterData(Y, Z, X, cluster_labels, group_labels, ingroup_labels,
                 cluster_feature, n_moments, categorical_Z)
@@ -29,7 +29,7 @@ class Clustered(Observational):
         
     def _est(self, method='ipw'):
         group_structs = sorted(list(self.data.data_by_group_struct.keys()))
-        total_result = [{} for _ in range(len(group_structs[0]))]   # all group_struct have the same length
+        total_result = [{} for _ in range(len(group_structs[0]))]   # all group_struct should have the same length
         for group_struct in group_structs:
             size = np.sum(group_struct)
             Mn = len(self.data.data_by_group_struct[group_struct][0])/size
@@ -69,8 +69,11 @@ class Clustered(Observational):
                     if np.sum(w) > 0:
                         w /= np.sum(w)
 
-                    Vg_n = key_vals[:,2]
                     ret_j['beta(g)'][key] = w.dot(taug_n)
+
+                    Vg_n = key_vals[:,2]
+                    assert np.all(invalid == np.isnan(Vg_n))
+                    Vg_n[invalid] = 0
                     Vg1 = Vg_n.dot(w**2/key_vals[:,0])
                     ret_j['se'][key] = np.sqrt(Vg1/self.data.M)
 
@@ -80,10 +83,11 @@ class Clustered(Observational):
         
 
     def est_propensity(self, Z, G_encoded, Xc):
-        idv = self.prop_idv_model.fit(Xc, Z)
+        Xc_s = Xc/np.sqrt(np.var(Xc, axis=0))
+        idv = self.prop_idv_model.fit(Xc_s, Z)
         prop_idv = idv.insample_proba()
-        neigh = self.prop_neigh_model.fit(Xc, G_encoded)    # assuming Z is independent
-        prop_neigh = neigh.predict_proba(Xc)
+        neigh = self.prop_neigh_model.fit(Xc_s, G_encoded)   # assuming Z is independent
+        prop_neigh = neigh.predict_proba(Xc_s)
         return prop_idv, prop_neigh
     
 
@@ -119,7 +123,7 @@ class Clustered(Observational):
             mask0 = np.all(G==g, axis=1) & (Z==0)
             if not np.any(mask1) or not np.any(mask0):
                 for j in range(len(group_struct)):
-                    # we are left with no sample
+                    # no such samples
                     result[j]['beta(g)'][g_encoded] = np.nan
                     continue
 
@@ -152,14 +156,21 @@ class Clustered(Observational):
             else:
                 raise ValueError("Incorrect input of estimation method.")
 
-            if self.subsampling_match <= N:
-                sub = np.random.choice(np.arange(N), self.subsampling_match, replace=False)
-            else:
-                sub = slice(None)
 
             for j, size in enumerate(group_struct):
-                Vg = self.variance_via_matching(Y[sub], Z[sub], Xc[sub], ingroup_labels[sub], group_struct,
-                                    prop_idv[sub], prop_neigh[sub, g_encoded], size, np.all(G[sub] == g, axis=1))
+                sub = np.arange(N)
+                sub = sub[group_labels == j]
+                if self.subsampling_match < sub.size:
+                    sub = np.random.choice(sub, self.subsampling_match, replace=False)
+
+                idx_g = np.all(G[sub] == g, axis=1)
+                if not np.any(idx_g):
+                    # no such samples
+                    result[j]['se'][g_encoded] = np.nan
+                    continue
+
+                Vg = self.variance_via_matching(Y[sub], Z[sub], Xc[sub], ingroup_labels[sub],
+                                    prop_idv[sub], prop_neigh[sub, g_encoded], size, idx_g)
                 result[j]['se'][g_encoded] = np.sqrt(Vg/M)
 
         return result
@@ -183,7 +194,7 @@ class Clustered(Observational):
         return beta_g
                
     
-    def variance_via_matching(self, Y, Z, Xc, ingroup_labels, group_struct, q, pg, size, idx_g):
+    def variance_via_matching(self, Y, Z, Xc, ingroup_labels, q, pg, size, idx_g):
         idx1 = Z == 1
         Y1_g = Y[idx1 & idx_g]
         Y0_g = Y[(~idx1) & idx_g]
@@ -198,28 +209,24 @@ class Clustered(Observational):
         # Match for all units
         match_t = self.mat_match_mat(Xc_s, X1, self.n_matches)
         match_c = self.mat_match_mat(Xc_s, X0, self.n_matches)
+        var_t = np.var(Y1_g[match_t], axis=1)
+        var_c = np.var(Y0_g[match_c], axis=1)
 
         # Calculate Vg
-        arr_all = []
-        for i in range(len(group_struct)):
+        expectations = np.empty(size)
+        for i in range(size):
+            # The i-th individual in the j-th group
             mask = ingroup_labels == i
-            var_t = np.var(Y1_g[match_t][mask], axis=1)
-            var_c = np.var(Y0_g[match_c][mask], axis=1)
-            arr = var_t/(pg[mask]*q[mask]) + var_c/(pg[mask]*(1-q[mask]))
-            arr_all.append(np.mean(arr))
+            arr = var_t[mask]/(pg[mask]*q[mask]) + var_c[mask]/(pg[mask]*(1-q[mask]))
+            expectations[i] = np.mean(arr)
 
         beta = np.mean(Y1_g[match_t], axis=1) - np.mean(Y0_g[match_c], axis=1)
-        beta_j = [beta[ingroup_labels == i] for i in range(len(group_struct))]
+        beta_j = [beta[ingroup_labels == i] for i in range(size)]
         min_len = min(len(bi) for bi in beta_j)
-        beta_mat = np.column_stack([bi[:min_len] for bi in beta_j])
-        cov = np.cov(beta_mat, rowvar=False, bias=True)
-        if cov.shape == ():
-            # prompt the variance to a covariance matrix when there is only one group in group_struct
-            cov.shape = (1, 1)
-        off_diag = np.copy(cov)
-        np.fill_diagonal(off_diag, 0)
+        beta_mat = np.row_stack([bi[:min_len] for bi in beta_j])
+        cov = np.cov(beta_mat)
 
-        Vg = sum(arr_all)/size + np.sum(np.diag(cov))/size + np.sum(off_diag)/size**2
+        Vg = np.sum(expectations)/size**2 + np.sum(cov)/size**2
         return Vg
     
 

@@ -285,15 +285,10 @@ class Observational(PotentialOutcome):
         idx = np.array(idx)
 
         n = Y.shape[0]
-        mask = idx == n     # this happens when Y.shape < M
+        mask = idx == n     # this happens when M > n
         rmd = np.sum(mask)
         if rmd:
-            # in that case, sample random rows from Y
-            idx[mask] = np.tile(np.arange(n), rmd//n+1)[:rmd]
+            # in that case, fill in random rows from Y with replacement
+            idx[mask] = np.tile(np.arange(n), (rmd+n-1)//n)[:rmd]
 
         return idx
-    
-    
-    def mat_match_mat2(self, X, Y, M):
-        D = cdist(X, Y)
-        return np.argpartition(D, M, axis=1)[:,:M]

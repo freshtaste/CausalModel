@@ -7,10 +7,10 @@ from causalmodel.interference import Clustered
 from causalmodel.utils.random_data import get_clustered_data
 
 
-def simplified():
+def homogeneous():
     clusters_list = [800, 1200, 1600]
     group_struct_list = [(2,), (3,), (3,)]
-    tau = 42
+    tau = 1.5
     gamma = np.array([-5])
 
     max_group_struct = np.maximum.reduce(group_struct_list)
@@ -18,7 +18,7 @@ def simplified():
     grid = np.arange(i)
     ground_truth = tau + np.sum(gamma[:, np.newaxis] * grid, axis=0)
 
-    replications = 500000
+    replications = 50000
     beta_ensemble = np.empty((replications, 4))
     se_ensemble = np.empty((replications, 4))
     np.random.seed(42)
@@ -44,9 +44,9 @@ def simplified():
         axes[i].set_title(f'g=({i},)')
 
     fig.suptitle(f'Studentized beta estimation', fontsize='xx-large')
-    fig.savefig(f'simplified_{replications}.png', dpi=400, bbox_inches='tight')
+    fig.savefig(f'homogeneous_{replications}.png', dpi=400, bbox_inches='tight')
     fig.clf()
 
 
 if __name__ == '__main__':
-    simplified()
+    homogeneous()

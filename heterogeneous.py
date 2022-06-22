@@ -7,21 +7,21 @@ from causalmodel.interference import Clustered
 from causalmodel.utils.random_data import get_clustered_data
 
 
-def demo():
-    clusters_list = [800, 1200, 1600]
+def heterogeneous():
+    clusters_list = [2400, 2400, 2400]
     group_struct_list = [(2, 2), (3, 2), (3, 3)]
-    tau = 42
+    tau = 1.5
     gamma_marginal = np.array([-0.5, 1.2])
 
     max_group_struct = np.maximum.reduce(group_struct_list)
     grid = np.array(np.meshgrid(*(np.arange(i+1) for i in max_group_struct), indexing='ij'))
     grid = np.moveaxis(grid, 0, -1)
     gamma = grid @ gamma_marginal
-    gamma[1, 3] = gamma[2, 0] = gamma[3, 2] = -2.5  # add some interactions
+    # gamma[1, 3] = gamma[2, 0] = gamma[3, 2] = -2.5  # add some interactions
 
     ground_truth = tau + gamma
 
-    replications = 20000
+    replications = 5000
     beta_ensemble = np.empty((replications, 2, 4, 4))
     se_ensemble = np.empty((replications, 2, 4, 4))
     np.random.seed(42)
@@ -51,9 +51,9 @@ def demo():
                 axes[i, ii].set_title(f'g=({i}, {ii})')
 
         fig.suptitle(f'Studentized beta estimation for group #{j}', fontsize='xx-large')
-        fig.savefig(f'demo{j}_{replications}.png', dpi=400, bbox_inches='tight')
+        fig.savefig(f'heterogeneous{j}_nointeraction_{replications}.png', dpi=400, bbox_inches='tight')
         fig.clf()
 
 
 if __name__ == '__main__':
-    demo()
+    heterogeneous()

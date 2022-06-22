@@ -31,7 +31,7 @@ def get_data_continuous(N=10000, k=2, tau=10):
 
 
 def get_fixed_cluster(clusters=10000, group_struct=(2, 3, 4),
-                      k=2, tau=1, gamma=None, label_start=0):
+                      k=2, tau=1., gamma=None, label_start=0):
     """
     Get data for fixed cluster size.
 
@@ -109,8 +109,7 @@ def get_fixed_cluster(clusters=10000, group_struct=(2, 3, 4),
 def get_clustered_data(
         clusters_list=[5000, 5000, 2000],
         group_struct_list=[(2, 3, 4), (3, 4, 5), (4, 5, 6)],
-        tau=1,
-        gamma=np.array([5, 0, 1])):
+        tau=1., gamma=np.array([5, 0, 1])):
     """
     Get data for varying cluster sizes
 
