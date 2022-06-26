@@ -9,8 +9,8 @@ from causalmodel.utils.random_data import get_clustered_data
 
 
 config = {
-    'homogeneous': ([800, 1200, 1600], [(2, 0), (3, 0), (3, 0)], 50000),        # only one group per cluster
     'heterogeneous': ([1600, 2400, 3200], [(2, 2), (3, 2), (3, 3)], 5000),      # multiple groups per cluster
+    'homogeneous': ([800, 1200, 1600], [(2, 0), (3, 0), (3, 0)], 50000),        # only one group per cluster
     'incomplete': ([1600, 2400, 3200], [(3, 1), (1, 3), (3, 1)], 10000),        # some group structures unavailable, e.g. (2, 2)
     'more_groups': ([3200, 4800, 6400], [(3, 4), (4, 3), (4, 4)], 2000),        # more complex group structures (stress test)
 }
