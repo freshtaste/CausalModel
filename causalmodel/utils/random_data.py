@@ -101,7 +101,7 @@ def get_fixed_cluster(clusters=10000, group_struct=(2, 3, 4),
     # get outcome Y
     epsilon = np.random.normal(0, 1, units)
     treatment_effect = Z * beta[tuple(G.T)]
-    Y = Xc.dot(np.linspace(-1,1,2*k)) + treatment_effect + epsilon
+    Y = (1 + Z) * Xc.dot(np.linspace(-1,1,2*k)) + treatment_effect + epsilon    # the interaction between Z and Xc does not change the treatment effect since X has zero mean
     sub = np.random.choice(np.arange(units), units, replace=False)
     return Y[sub], Z[sub], X[sub], cluster_labels[sub], group_labels[sub], ingroup_labels[sub], G[sub], Xc[sub]
 

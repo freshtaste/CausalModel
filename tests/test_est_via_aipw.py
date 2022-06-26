@@ -29,7 +29,7 @@ class TestObservational(unittest.TestCase):
         clusters_list = np.array([17, 19, 23])
         group_struct_list = np.array([(2, 3), (5, 7), (11, 13)])
         tau = 1
-        gamma = (0, 1)
+        gamma = np.array((0, 1))
         Y, Z, X, cluster_labels, group_labels, ingroup_labels, G, Xc = \
                 get_clustered_data(clusters_list, group_struct_list, tau, gamma)
 

@@ -1,10 +1,18 @@
-.PHONY: demo simplified test
+.PHONY: all homogeneous heterogeneous incomplete more_groups test
 
-demo:
-	pipenv run python3 demo.py
+all: homogeneous heterogeneous incomplete more_groups
 
-simplified:
-	pipenv run python3 simplified.py
+homogeneous:
+	pipenv run python3 example.py --config_name homogeneous
+
+heterogeneous:
+	pipenv run python3 example.py --config_name heterogeneous
+
+incomplete:
+	pipenv run python3 example.py --config_name incomplete
+
+more_groups:
+	pipenv run python3 example.py --config_name more_groups
 
 test:
 	pipenv run pytest --doctest-modules

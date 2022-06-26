@@ -31,14 +31,14 @@ class Clustered(Observational):
         group_structs = sorted(list(self.data.data_by_group_struct.keys()))
         total_result = [{} for _ in range(len(group_structs[0]))]   # all group_struct should have the same length
         for group_struct in group_structs:
-            size = np.sum(group_struct)
-            Mn = len(self.data.data_by_group_struct[group_struct][0])/size
+            individuals_in_cluster = np.sum(group_struct)
+            Mn = len(self.data.data_by_group_struct[group_struct][0])/individuals_in_cluster
             pn = Mn/self.data.M
             result = self.est_subsample(group_struct, method)
             for j in range(len(group_struct)):
                 taug = result[j]['beta(g)']
                 Vg = result[j]['se']**2*Mn
-                total_result[j][group_struct] = (pn, taug, Vg)
+                total_result[j][group_struct] = pn, taug, Vg
 
         max_group_struct = np.maximum.reduce(group_structs)
         ret = []
@@ -55,68 +55,66 @@ class Clustered(Observational):
                 for gg, (pn, taug, Vg) in total_result[j].items():
                     if np.all(gg >= g) and not np.all(gg == g):
                         encoded = self.encode_G(g, gg)
-                        key_vals.append([pn, taug[encoded].item(), Vg[encoded].item()])
+                        key_vals.append((pn, taug[encoded].item(), Vg[encoded].item()))
                 key_vals = np.array(key_vals)
 
-                if key_vals.size:
-                    key = tuple(g.squeeze(axis=0))
-                    w = key_vals[:,0]/np.sum(key_vals[:,0])
+                if key_vals.size == 0:
+                    continue
 
-                    taug_n = key_vals[:,1]
-                    invalid = np.isnan(taug_n)  # certain group_struct is invalid
-                    taug_n[invalid] = 0
-                    w[invalid] = 0
-                    if np.sum(w) > 0:
-                        w /= np.sum(w)
+                key = tuple(g.squeeze(axis=0))
+                w = key_vals[:, 0]/np.sum(key_vals[:, 0])
 
-                    ret_j['beta(g)'][key] = w.dot(taug_n)
+                taug_n = key_vals[:, 1]
+                invalid = np.isnan(taug_n)  # certain group_struct is invalid because e.g. no such samples
+                taug_n[invalid] = 0
+                w[invalid] = 0
+                if np.sum(w) > 0:
+                    w /= np.sum(w)
 
-                    Vg_n = key_vals[:,2]
-                    assert np.all(invalid == np.isnan(Vg_n))
-                    Vg_n[invalid] = 0
-                    Vg1 = Vg_n.dot(w**2/key_vals[:,0])
-                    ret_j['se'][key] = np.sqrt(Vg1/self.data.M)
+                ret_j['beta(g)'][key] = w.dot(taug_n)
+
+                Vg_n = key_vals[:, 2]
+
+                # Equality doesn't hold when np.any(idx_g) is True
+                # but variance_via_matching returns np.nan
+                assert np.all(invalid <= np.isnan(Vg_n))
+
+                Vg_n[invalid] = 0
+                Vg1 = Vg_n.dot(w**2/key_vals[:, 0])
+                ret_j['se'][key] = np.sqrt(Vg1/self.data.M)
 
             ret.append(ret_j)
 
         return ret
         
 
-    def est_propensity(self, Z, G_encoded, Xc):
-        Xc_s = Xc/np.sqrt(np.var(Xc, axis=0))
-        idv = self.prop_idv_model.fit(Xc_s, Z)
+    def est_propensity(self, Z, G_encoded, X_g):
+        idv = self.prop_idv_model.fit(X_g, Z)
         prop_idv = idv.insample_proba()
-        neigh = self.prop_neigh_model.fit(Xc_s, G_encoded)   # assuming Z is independent
-        prop_neigh = neigh.predict_proba(Xc_s)
+
+        # NOTE: this is the performance bottleneck.
+        # It takes forever to converge when we have a lot of groups
+        neigh = self.prop_neigh_model.fit(X_g, G_encoded)   # Z is not in the regressor since we assume Z_i is independent of Z_j for all i != j
+        prop_neigh = neigh.predict_proba(X_g)
+
         return prop_idv, prop_neigh
-    
-
-    def encode_G(self, G, group_struct):
-        weight = np.append(1, np.cumprod(np.array(group_struct[:-1], dtype=int) + 1))
-        return np.sum(G * weight, axis=1)
-
-
-    def decode_G(self, G_encoded, group_struct):
-        weight = np.append(1, np.cumprod(np.array(group_struct[:-1], dtype=int) + 1))
-        G_encoded = np.copy(G_encoded)
-        G_rev = []
-        for w in reversed(weight):
-            G_rev.append(G_encoded // w)
-            G_encoded %= w
-        return np.vstack(tuple(reversed(G_rev))).T
 
 
     def est_subsample(self, group_struct, method='ipw'):
         Y, Z, G, Xc, cluster_labels, group_labels, ingroup_labels = self.data.data_by_group_struct[group_struct]
         M = len(set(cluster_labels))
         N = len(Y)
+
         G_encoded = self.encode_G(G, group_struct)
-        prop_idv, prop_neigh = self.est_propensity(Z, G_encoded, Xc)
+        Xc_s = Xc/np.sqrt(np.var(Xc, axis=0))
+        X_g = np.column_stack([Xc_s, group_labels]) # the group label tells us the number of neighbours, so it's helpful for estimating the number of treated neighbours
+        prop_idv, prop_neigh = self.est_propensity(Z, G_encoded, X_g)
+
         G_count = np.prod(np.array(group_struct)+1)
         result = [{'beta(g)': np.zeros(G_count), 'se': np.zeros(G_count)}
                 for _ in range(len(group_struct))]
         linear_model = OLS()
-        for g_encoded in range(G_count - 1):    # `g` can never be `group_struct` since neighbour does not include oneself
+        for g_encoded in range(G_count):
             g = self.decode_G(g_encoded, group_struct)
             # fit outcome model for aipw
             mask1 = np.all(G==g, axis=1) & (Z==1)
@@ -125,15 +123,16 @@ class Clustered(Observational):
                 for j in range(len(group_struct)):
                     # no such samples
                     result[j]['beta(g)'][g_encoded] = np.nan
-                    continue
+                continue
 
             if method == 'ipw':
                 for j in range(len(group_struct)):
                     mask = group_labels == j
 
-                    gg = np.array(g)
+                    gg = g.copy()
                     gg[0, j] += 1
                     if np.max(gg - group_struct) > 0:
+                        # it's impossible to have more treated people than all people in each group (assuming I am treated)
                         result[j]['beta(g)'][g_encoded] = np.nan
                     else:
                         result[j]['beta(g)'][g_encoded] = self._ipw_formula(Y[mask], Z[mask], G[mask], prop_idv[mask], prop_neigh[mask], g, g_encoded)
@@ -146,9 +145,10 @@ class Clustered(Observational):
                 for j in range(len(group_struct)):
                     mask = group_labels == j
 
-                    gg = np.array(g)
+                    gg = g.copy()
                     gg[0, j] += 1
                     if np.max(gg - group_struct) > 0:
+                        # it's impossible to have more treated people than all people in each group (assuming I am treated)
                         result[j]['beta(g)'][g_encoded] = np.nan
                     else:
                         result[j]['beta(g)'][g_encoded] = self._aipw_formula(Y[mask], Z[mask], G[mask], prop_idv[mask], prop_neigh[mask], g, g_encoded, mu1g[mask], mu0g[mask])
@@ -157,7 +157,7 @@ class Clustered(Observational):
                 raise ValueError("Incorrect input of estimation method.")
 
 
-            for j, size in enumerate(group_struct):
+            for j, individuals_in_group in enumerate(group_struct):
                 sub = np.arange(N)
                 sub = sub[group_labels == j]
                 if self.subsampling_match < sub.size:
@@ -170,7 +170,7 @@ class Clustered(Observational):
                     continue
 
                 Vg = self.variance_via_matching(Y[sub], Z[sub], Xc[sub], ingroup_labels[sub],
-                                    prop_idv[sub], prop_neigh[sub, g_encoded], size, idx_g)
+                                    prop_idv[sub], prop_neigh[sub, g_encoded], individuals_in_group, idx_g)
                 result[j]['se'][g_encoded] = np.sqrt(Vg/M)
 
         return result
@@ -201,6 +201,10 @@ class Clustered(Observational):
         Xc1_g = Xc[idx1 & idx_g]
         Xc0_g = Xc[(~idx1) & idx_g]
 
+        if Xc1_g.shape[0] < 2 or Xc0_g.shape[0] < 2:
+            # we need at least 2 samples to calculate the variance
+            return np.nan
+
         # Standardize Xc
         Xc_s = Xc/np.sqrt(np.var(Xc, axis=0))
         X1 = Xc1_g/np.sqrt(np.var(Xc1_g, axis=0))
@@ -228,6 +232,36 @@ class Clustered(Observational):
 
         Vg = np.sum(expectations)/size**2 + np.sum(cov)/size**2
         return Vg
+    
+
+    def encode_G(self, G, group_struct):
+        """
+        Encode the neighbourhood structure G to an integer.
+
+        >>> encode_G(np.array([[0, 0], [0, 1], [1, 0], [1, 1]]), np.array([2, 3]))
+        [0 3 1 4]
+        """
+        weight = np.append(1, np.cumprod(np.array(group_struct[:-1], dtype=int) + 1))
+        return np.sum(G * weight, axis=1)
+
+
+    def decode_G(self, G_encoded, group_struct):
+        """
+        Decode the neighbourhood structure G from an integer.
+
+        >>> decode_G(np.array([0, 3, 1, 4]), np.array([2, 3]))
+        array([[0, 0],
+               [0, 1],
+               [1, 0],
+               [1, 1]])
+        """
+        weight = np.append(1, np.cumprod(np.array(group_struct[:-1], dtype=int) + 1))
+        G_encoded = np.copy(G_encoded)
+        G_rev = []
+        for w in reversed(weight):
+            G_rev.append(G_encoded // w)
+            G_encoded %= w
+        return np.vstack(tuple(reversed(G_rev))).T
     
 
 class ClusterData(POdata):
