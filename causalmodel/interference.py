@@ -339,9 +339,8 @@ class ClusterData(POdata):
         if self.n_moments > 0:
             for j in range(len(group_struct)):
                 # average within each group
-                mask = (group_labels == j).reshape(clusters, nunit_per_cluster)
-                mask = np.tile(mask[:, :, np.newaxis], k)
-                Xj = np.ma.masked_where(mask, X)
+                mask = np.repeat(group_labels != j, k).reshape(clusters, nunit_per_cluster, k)
+                Xj = np.ma.masked_where(mask, X, copy=False)
 
                 # first-order plain moment, a.k.a. mean
                 m1 = np.mean(Xj, axis=1, keepdims=True)
@@ -355,7 +354,7 @@ class ClusterData(POdata):
                     fp = np.repeat(mp, nunit_per_cluster, axis=1)
                     X_augmented = np.append(X_augmented, fp, axis=2)
 
-        X = X_augmented.reshape(units, k * (1+self.n_moments*len(group_struct)))
+        X = X_augmented.reshape(units, k * (1 + len(group_struct) * self.n_moments))
 
         if cluster_feature:
             cluster_feature = cluster_feature[arg]
