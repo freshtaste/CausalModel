@@ -47,19 +47,12 @@ If you find the inference model useful, please consider citing our paper
 ```
 @misc{https://doi.org/10.48550/arxiv.2107.12420,
   doi = {10.48550/ARXIV.2107.12420},
-  
   url = {https://arxiv.org/abs/2107.12420},
-  
   author = {Qu, Zhaonan and Xiong, Ruoxuan and Liu, Jizhou and Imbens, Guido},
-  
   keywords = {Methodology (stat.ME), Econometrics (econ.EM), Statistics Theory (math.ST), FOS: Computer and information sciences, FOS: Computer and information sciences, FOS: Economics and business, FOS: Economics and business, FOS: Mathematics, FOS: Mathematics},
-  
   title = {Efficient Treatment Effect Estimation in Observational Studies under Heterogeneous Partial Interference},
-  
   publisher = {arXiv},
-  
   year = {2021},
-  
   copyright = {arXiv.org perpetual, non-exclusive license}
 }
 ```

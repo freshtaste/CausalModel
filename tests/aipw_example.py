@@ -78,5 +78,6 @@ def example(config_name, seed):
 
 if __name__ == '__main__':
     import sys
-    sys.path.insert(0,'..')
+    sys.path.insert(0, '..')
+
     example()
