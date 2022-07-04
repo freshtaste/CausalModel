@@ -44,5 +44,5 @@ se = result[0]['se']            # the estimated standard error of the estimated 
 
 ## Examples
 
-See [`example.py`](blob/master/example.py) and [`aipw_example.ipynb`](blob/master/aipw_example.ipynb) for more complete examples.
+See [`example.py`](example.py) and [`aipw_example.ipynb`](aipw_example.ipynb) for more complete examples.
 Both demonstrate the asymptotic normality of the Augumented IPW estimator.
