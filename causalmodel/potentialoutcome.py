@@ -77,15 +77,11 @@ class POdata(object):
         if not (isinstance(self.X, np.ndarray) \
                 and isinstance(self.Y, np.ndarray) \
                 and isinstance(self.Z, np.ndarray)):
-            raise RuntimeError("Incorrect input type for Y, Z or X. Should be np.ndarray.")
-            return False
+            raise ValueError("Incorrect input type for Y, Z or X. Should be np.ndarray.")
         if not len(self.Y) == len(self.Z) == len(self.X):
-            raise RuntimeError("Incorrect input shape for Y, Z or X. Should have n rows.")
-            return False
+            raise ValueError("Incorrect input shape for Y, Z or X. Should have n rows.")
         if not len(self.Y.shape) == len(self.Z.shape) == 1:
-            raise RuntimeError("Incorrect input shape for Y or Z. Should be (n,).")
-            return False
+            raise ValueError("Incorrect input shape for Y or Z. Should be (n,).")
         if not len(self.X.shape) == 2:
-            raise RuntimeError("Incorrect input shape for X. Should be n by k.")
-            return False
+            raise ValueError("Incorrect input shape for X. Should be n by k.")
         return True

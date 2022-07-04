@@ -3,6 +3,7 @@ from statsmodels.api import OLS as LinearRegression
 from .potentialoutcome import PotentialOutcome
 import warnings
 from .LearningModels import LogisticRegression, OLS
+from scipy.spatial.kdtree import KDTree
 from scipy.spatial.distance import cdist
 from sklearn.model_selection import KFold
 
@@ -278,21 +279,16 @@ class Observational(PotentialOutcome):
                               .format(num_bad_prop))
     
     
-    
     def mat_match_mat(self, X, Y, M):
-        return np.array([self.arr_match_mat(Xi, Y, M) for Xi in X])
-         
-    
-    def dist_arr_mat(self, Xi, X):
-        diff = X - Xi
-        return np.sum(diff**2,axis=1)
-        
-    
-    def arr_match_mat(self, Xi, X, M):
-        dist = self.dist_arr_mat(Xi, X)
-        return np.argpartition(dist, M)[:M]
-    
-    
-    def mat_match_mat2(self, X, Y, M):
-        D = cdist(X, Y)
-        return np.argpartition(D, M, axis=1)[:,:M]
+        tree = KDTree(Y)
+        _, idx = tree.query(X, M)
+        idx = np.array(idx)
+
+        n = Y.shape[0]
+        mask = idx == n     # this happens when M > n
+        rmd = np.sum(mask)
+        if rmd:
+            # in that case, fill in random rows from Y with replacement
+            idx[mask] = np.tile(np.arange(n), (rmd+n-1)//n)[:rmd]
+
+        return idx
