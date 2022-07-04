@@ -25,7 +25,7 @@ obs = Observational(Y, Z, X)
 obs.est_via_ipw(logit_model).show()
 ```
 
-For the heterogeneou partial interference model:
+For the heterogeneous partial interference model:
 
 ```python
 from interference import Clustered
