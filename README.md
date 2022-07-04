@@ -1,7 +1,6 @@
 # CausalModel
 
-*CausalModel* implements numerous casual inference methods widely used in statistics and economics.
-Started in 2020, the project aims to incorporate popular the causal inference models and methods, and possibly become a package for causal inference researchers both in the industry and academia.
+*CausalModel* implements numerous casual inference methods widely used in statistics and economics. It also includes IPW and AIPW based treatment effect estimation under heterogeneous partial interference by Qu et al (2021): [Efficient Treatment Effect Estimation in Observational Studies under Heterogeneous Partial Interference](https://arxiv.org/pdf/2107.12420.pdf)
 
 The repository gets updated from time to time.
 Tools and models are added in an order that is mainly driven by personal interests.
@@ -28,7 +27,7 @@ obs = Observational(Y, Z, X)
 obs.est_via_ipw(logit_model).show()
 ```
 
-For interference model:
+For the heterogeneou partial interference model:
 
 ```python
 from interference import Clustered
@@ -42,7 +41,7 @@ beta[1, 2]                      # the estimated treatment effect of the first gr
 se = result[0]['se']            # the estimated standard error of the estimated treatment effect of the first group
 ``` 
 
-If you find the inference model useful, please consider citing our paper
+If you find this package useful, please consider citing our paper
 
 ```
 @misc{https://doi.org/10.48550/arxiv.2107.12420,
