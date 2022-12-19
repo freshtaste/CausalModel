@@ -1,6 +1,6 @@
 # CausalModel
 
-*CausalModel* implements numerous casual inference methods widely used in statistics and economics. It also includes an interference based method by Qu et al. (2021): [Efficient Treatment Effect Estimation in Observational Studies under Heterogeneous Partial Interference](https://arxiv.org/pdf/2107.12420.pdf)
+*CausalModel* implements numerous casual inference methods widely used in statistics and economics. It also includes an implementation of AIPW treatment effect estimators under heterogeneous partial interference, based on the paper by Qu et al. (2021): [Efficient Treatment Effect Estimation in Observational Studies under Heterogeneous Partial Interference](https://arxiv.org/pdf/2107.12420.pdf) We plan to release this component as a standalone package soon.
 
 The repository gets updated from time to time. The current version includes:
 
